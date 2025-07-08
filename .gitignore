@@ -1,0 +1,74 @@
+# Cursor özel dosyaları
+.cursor/
+.vscode/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea/workspace.xml
+
+# Maven
+target/
+.mvn/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# Compiled class dosyalar
+*.class
+
+# Log dosyaları
+*.log
+logs/
+
+# Paket dosyaları
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# JVM kilitlenme günlükleri
+hs_err_pid*
+
+# Ekran görüntüleri
+target/screenshots/
+
+# Mac OS özel dosyalar
+.DS_Store
+._*
+
+# Windows özel dosyalar
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux özel dosyalar
+.directory
+.Trash-*
+
+# Allure raporları
+.allure/
+allure-results/
+allure-report/
+
+# Eclipse
+.settings/
+.classpath
+.project
+.metadata
+
+# Geçici dosyalar
+*.tmp
+*.swp
+*~ 
