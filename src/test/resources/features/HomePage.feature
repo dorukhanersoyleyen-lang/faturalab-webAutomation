@@ -1,5 +1,5 @@
 # language: en
-@homepage @academy
+@web @homepage @academy
 Feature: Faturalab Homepage Functionality
   
   Scenario: User should be able to successfully access the homepage

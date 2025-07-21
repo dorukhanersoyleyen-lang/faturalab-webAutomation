@@ -23,6 +23,7 @@ import com.faturalab.automation.stepdefinitions.Hooks;
 @CucumberOptions(
         features = {"src/test/resources/features"},
         glue = {"com.faturalab.automation.stepdefinitions"},
+        tags = "@web or @api",
         plugin = {
                 "pretty",
                 "html:target/cucumber-reports/cucumber-pretty.html",
@@ -115,35 +116,61 @@ public class TestRunner extends AbstractTestNGCucumberTests {
     
     @AfterSuite
     public void generateReport() {
-        File reportOutputDirectory = new File("target/cucumber-reports/advanced-reports");
-        List<String> jsonFiles = new ArrayList<>();
-        jsonFiles.add("target/cucumber-reports/CucumberTestReport.json");
-
-        // Build Configuration
-        String projectName = "Faturalab Web Automation";
-        Configuration configuration = new Configuration(reportOutputDirectory, projectName);
-        configuration.setBuildNumber("1.0");
-        configuration.addClassifications("Platform", System.getProperty("os.name"));
-        configuration.addClassifications("Browser", "Chrome"); // You can get this value from config file
-        configuration.addClassifications("Environment", "Test"); // You can get this value from config file
-
-        // Build Report
-        ReportBuilder reportBuilder = new ReportBuilder(jsonFiles, configuration);
-        reportBuilder.generateReports();
-        
-        System.out.println("Cucumber Advanced Reports generated at: " + reportOutputDirectory.getAbsolutePath());
-        
-        // Open report automatically
         try {
-            File htmlReport = new File("target/cucumber-reports/advanced-reports/cucumber-html-reports/overview-features.html");
-            if (htmlReport.exists() && Desktop.isDesktopSupported()) {
-                System.out.println("Opening report automatically: " + htmlReport.getAbsolutePath());
-                Desktop.getDesktop().browse(htmlReport.toURI());
-            } else {
-                System.out.println("Report file not found or system does not support this feature: " + htmlReport.getAbsolutePath());
+            File jsonFile = new File("target/cucumber-reports/CucumberTestReport.json");
+            
+            // Check if JSON file exists and has content
+            if (!jsonFile.exists()) {
+                System.out.println("Cucumber JSON report not found. Skipping advanced report generation.");
+                return;
             }
-        } catch (IOException e) {
-            System.err.println("Error occurred while opening report: " + e.getMessage());
+            
+            if (jsonFile.length() == 0) {
+                System.out.println("Cucumber JSON report is empty. Skipping advanced report generation.");
+                return;
+            }
+            
+            // Read file content to validate JSON
+            String jsonContent = new String(java.nio.file.Files.readAllBytes(jsonFile.toPath()));
+            if (jsonContent.trim().isEmpty() || jsonContent.equals("[]")) {
+                System.out.println("Cucumber JSON report contains no test results. Skipping advanced report generation.");
+                return;
+            }
+            
+            File reportOutputDirectory = new File("target/cucumber-reports/advanced-reports");
+            List<String> jsonFiles = new ArrayList<>();
+            jsonFiles.add("target/cucumber-reports/CucumberTestReport.json");
+
+            // Build Configuration
+            String projectName = "Faturalab Web Automation";
+            Configuration configuration = new Configuration(reportOutputDirectory, projectName);
+            configuration.setBuildNumber("1.0");
+            configuration.addClassifications("Platform", System.getProperty("os.name"));
+            configuration.addClassifications("Browser", "Chrome");
+            configuration.addClassifications("Environment", "Test");
+
+            // Build Report
+            ReportBuilder reportBuilder = new ReportBuilder(jsonFiles, configuration);
+            reportBuilder.generateReports();
+            
+            System.out.println("Cucumber Advanced Reports generated at: " + reportOutputDirectory.getAbsolutePath());
+            
+            // Open report automatically
+            try {
+                File htmlReport = new File("target/cucumber-reports/advanced-reports/cucumber-html-reports/overview-features.html");
+                if (htmlReport.exists() && Desktop.isDesktopSupported()) {
+                    System.out.println("Opening report automatically: " + htmlReport.getAbsolutePath());
+                    Desktop.getDesktop().browse(htmlReport.toURI());
+                } else {
+                    System.out.println("Report file not found or system does not support this feature: " + htmlReport.getAbsolutePath());
+                }
+            } catch (IOException e) {
+                System.err.println("Error occurred while opening report: " + e.getMessage());
+            }
+            
+        } catch (Exception e) {
+            System.err.println("Error occurred while generating cucumber report: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 } 

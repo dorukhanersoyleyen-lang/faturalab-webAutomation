@@ -1,5 +1,5 @@
 # language: en
-@academy
+@web @academy
 Feature: Faturalab Academy Functionality
   
   Scenario: User should be able to view instructors on the Academy page
