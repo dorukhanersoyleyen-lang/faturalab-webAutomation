@@ -96,7 +96,7 @@ public class InvoiceTestDataGenerator {
     }
     
     public static String getCurrentDateTimeISO() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXX");  // XX = +0300, XXX = +03:00
         return sdf.format(new Date());
     }
     
@@ -126,7 +126,7 @@ public class InvoiceTestDataGenerator {
         return SUPPLIER_TAX_NUMBERS[randomIndex];
     }
     
-    private static double getRandomAmount() {
-        return Math.round((Math.random() * 10000 + 100) * 100.0) / 100.0; // Between 100-10100
+    private static int getRandomAmount() {
+        return (int)(Math.random() * 10000 + 100); // Between 100-10100 (integer)
     }
 } 

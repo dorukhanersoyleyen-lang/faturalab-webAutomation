@@ -1,95 +1,100 @@
-# Faturalab Web and API Automation Project
+# Faturalab API Test Automation 🚀
 
-This project is a web and API test automation framework prepared for Faturalab. Tests written with the BDD approach have been implemented using Cucumber, Selenium WebDriver, TestNG, and REST-Assured.
+Bu proje ALBC firması için Faturalab API'larının otomatik test edilmesi amacıyla geliştirilmiştir.
 
-## Project Features
+## 📋 Test Kategorileri
 
-* Developed with Java 11
-* Using Cucumber 7.15.0 BDD framework
-* Web automation with Selenium WebDriver 4.16.1
-* Test management with TestNG 7.9.0
-* API tests with REST-Assured 5.4.0
-* Page Object Model (POM) design pattern used
-* Logging with Log4j
-* Allure and Cucumber reporting integrated
+- **@smoke** - Temel fatura upload/delete testleri
+- **@negative** - Boş parametreler ve hata senaryoları  
+- **@validation** - Geçersiz değerler ve input validasyon
+- **@invoiceTypes** - E-Fatura, E-Arşiv farklı fatura türleri
 
-## Tests
+## 🏃‍♂️ Test Çalıştırma
 
-### Web Tests
+### Basit Yöntem (Önerilen)
+```bash
+# Windows
+run-tests.bat
 
-* Faturalab Academy page access tests
-* Homepage elements verification
-* Instructor list validation
+# Mac/Linux  
+./run-tests.sh
+```
 
-### API Tests
+### Maven ile Çalıştırma
+```bash
+# Tüm enabled testleri çalıştır
+mvn clean test
 
-* JsonPlaceholder API endpoint validation
-* HTTP status code verification
-* Response format validation
-* Data structure verification
+# Sadece smoke testleri
+mvn test -Dtest.name="ALBC-Smoke-Tests"
 
-## How to Run
+# Sadece negative testleri  
+mvn test -Dtest.name="ALBC-Negative-Tests"
+```
+
+## ⚙️ Test Yönetimi
+
+Testler `testng.xml` dosyasından yönetilir:
+
+```xml
+<!-- Test grubu çalıştırmak için -->
+<test name="ALBC-Smoke-Tests" enabled="true">
+
+<!-- Test grubu atlamak için -->  
+<test name="ALBC-Validation-Tests" enabled="false">
+```
+
+## 📊 Raporlar
+
+Test çalıştıktan sonra raporlar şurada oluşur:
+
+- **TestNG Report**: `target/surefire-reports/index.html`
+- **Cucumber Report**: `target/cucumber-reports/basic-html/index.html` 
+- **JSON Report**: `target/cucumber-reports/cucumber-test-report.json`
+
+## 🌐 Environment
+
+ALBC environment configuration:
+```
+Host: https://dev.faturalab.com/app/api/integration/buyer/v0
+Environment: ALBC Marketler
+```
+
+## 📁 Proje Yapısı
+
+```
+├── src/test/java/
+│   ├── runners/ALBCTestRunner.java       # Cucumber TestNG Runner
+│   ├── stepdefinitions/FaturaAPISteps.java # Test step implementations  
+│   └── hooks/CucumberHooks.java          # Test lifecycle hooks
+├── src/test/resources/
+│   ├── features/FaturaUploadFlow.feature # BDD test scenarios
+│   └── config/                           # Environment configurations
+├── testng.xml                            # TestNG test suite configuration
+├── run-tests.bat                         # Windows test runner
+└── run-tests.sh                          # Mac/Linux test runner
+```
+
+## 🔧 Hızlı Authentication Test
 
 ```bash
-# To run web tests
-mvn clean test -Dtest=TestRunner
-
-# To run API tests
-mvn clean test -Dtest=APITestRunner
+java -cp target/test-classes:target/classes com.faturalab.automation.ALBCAuthTest
 ```
 
-## Project Video
+## 📝 API Test Detayları
 
-The following video demonstrates the test automation in action:
+Her test çalıştığında şu bilgiler raporlanır:
 
-[![Faturalab Web Automation Demo](https://i.vimeocdn.com/video/1074132020_640.jpg)](https://vimeo.com/1074132020/35cb3f0e92?ts=0&share=copy "Faturalab Web Automation Demo")
+- ✅ **Request detayları** (endpoint, headers, body)
+- ✅ **Response detayları** (status, headers, JSON response)  
+- ✅ **Test adımları** ve sonuçları
+- ✅ **Hata durumları** ve debug bilgileri
 
-## Project Structure
+## 🎯 Test Senaryoları
 
-```
-src
-├── main
-│   └── java
-│       └── com.faturalab.automation
-│           ├── api          # API Operations
-│           ├── config       # Configuration Management
-│           ├── driver       # WebDriver Factory
-│           ├── models       # Data Models
-│           ├── pages        # Page Objects
-│           └── utils        # Helper Classes
-│
-├── test
-│   └── java
-│       └── com.faturalab.automation
-│           ├── runners        # Cucumber Test Runners
-│           ├── stepdefinitions # Cucumber Step Definitions
-│
-└── resources
-    ├── features              # Gherkin Feature Files
-    └── config                # Properties Files
-```
+1. **Basit Fatura Yükleme** - Authentication → Upload → History → Delete
+2. **Boş Parametreler** - Hata handling testleri
+3. **Geçersiz Değerler** - Validation testleri  
+4. **E-Arşiv Fatura** - Farklı fatura türü testleri
 
-## Technology Stack
-
-| Technology | Version |
-|-----------|----------|
-| Java | 11 |
-| Selenium | 4.16.1 |
-| Cucumber | 7.15.0 |
-| TestNG | 7.9.0 |
-| REST-Assured | 5.4.0 |
-| WebDriverManager | 5.6.3 |
-| Log4j2 | 2.22.1 |
-| Maven | 3.x |
-
-## Reporting
-
-After running tests, reports are generated in the following locations:
-
-- **Cucumber HTML Reports**: `target/cucumber-reports/`
-- **Allure Reports**: `target/allure-results/`
-
-To view Allure reports:
-```bash
-mvn allure:serve
-``` 
+Tüm testler **ALBC environment** üzerinde çalışır ve **gerçek API endpoint'leri** kullanır. 

@@ -22,12 +22,12 @@ import com.faturalab.automation.stepdefinitions.Hooks;
 
 @CucumberOptions(
         features = {"src/test/resources/features"},
-        glue = {"com.faturalab.automation.stepdefinitions"},
-        tags = "@web or @api",
+        glue = {"com.faturalab.automation.stepdefinitions", "com.faturalab.automation.hooks"},
+        tags = "not @disabled",  // ALL TESTS except disabled
         plugin = {
                 "pretty",
-                "html:target/cucumber-reports/cucumber-pretty.html",
-                "json:target/cucumber-reports/CucumberTestReport.json",
+                "html:target/cucumber-reports/index.html",
+                "json:target/cucumber-reports/cucumber.json",
                 "io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm"
         },
         monochrome = true,
@@ -117,7 +117,7 @@ public class TestRunner extends AbstractTestNGCucumberTests {
     @AfterSuite
     public void generateReport() {
         try {
-            File jsonFile = new File("target/cucumber-reports/CucumberTestReport.json");
+            File jsonFile = new File("target/cucumber-reports/cucumber.json");
             
             // Check if JSON file exists and has content
             if (!jsonFile.exists()) {
@@ -139,7 +139,7 @@ public class TestRunner extends AbstractTestNGCucumberTests {
             
             File reportOutputDirectory = new File("target/cucumber-reports/advanced-reports");
             List<String> jsonFiles = new ArrayList<>();
-            jsonFiles.add("target/cucumber-reports/CucumberTestReport.json");
+            jsonFiles.add("target/cucumber-reports/cucumber.json");
 
             // Build Configuration
             String projectName = "Faturalab Web Automation";
@@ -154,18 +154,24 @@ public class TestRunner extends AbstractTestNGCucumberTests {
             reportBuilder.generateReports();
             
             System.out.println("Cucumber Advanced Reports generated at: " + reportOutputDirectory.getAbsolutePath());
+            System.out.println("Advanced Report File: target/cucumber-reports/advanced-reports/cucumber-html-reports/overview-features.html");
             
-            // Open report automatically
+            // Wait for files to be written completely
             try {
-                File htmlReport = new File("target/cucumber-reports/advanced-reports/cucumber-html-reports/overview-features.html");
-                if (htmlReport.exists() && Desktop.isDesktopSupported()) {
-                    System.out.println("Opening report automatically: " + htmlReport.getAbsolutePath());
-                    Desktop.getDesktop().browse(htmlReport.toURI());
-                } else {
-                    System.out.println("Report file not found or system does not support this feature: " + htmlReport.getAbsolutePath());
-                }
-            } catch (IOException e) {
-                System.err.println("Error occurred while opening report: " + e.getMessage());
+                Thread.sleep(2000); // Wait 2 seconds for advanced report files
+                System.out.println("⏳ Waiting for advanced report files to be written...");
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            
+            // Open report automatically using ReportOpener
+            try {
+                System.out.println("🌐 Opening test reports using ReportOpener...");
+                System.out.println("📊 Priority: Advanced Report > Basic Report > TestNG Report");
+                com.faturalab.automation.utils.ReportOpener.main(new String[]{});
+            } catch (Exception e) {
+                System.err.println("❌ Error occurred while opening report: " + e.getMessage());
+                e.printStackTrace();
             }
             
         } catch (Exception e) {

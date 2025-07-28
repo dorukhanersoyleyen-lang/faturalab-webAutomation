@@ -11,10 +11,10 @@ public class UploadInvoiceRequest {
     private String supplierTaxNo;
     
     @JsonProperty("invoiceAmount")
-    private double invoiceAmount;
+    private int invoiceAmount;
     
     @JsonProperty("remainingAmount")
-    private double remainingAmount;
+    private int remainingAmount;
     
     @JsonProperty("currencyType")
     private String currencyType;
@@ -38,7 +38,7 @@ public class UploadInvoiceRequest {
     private String hashCode;
     
     @JsonProperty("taxExclusiveAmount")
-    private double taxExclusiveAmount;
+    private int taxExclusiveAmount;
     
     @JsonProperty("fileName")
     private String fileName;
@@ -75,12 +75,12 @@ public class UploadInvoiceRequest {
         }
         
         public Builder invoiceAmount(double invoiceAmount) {
-            request.invoiceAmount = invoiceAmount;
+            request.invoiceAmount = (int) invoiceAmount;
             return this;
         }
         
         public Builder remainingAmount(double remainingAmount) {
-            request.remainingAmount = remainingAmount;
+            request.remainingAmount = (int) remainingAmount;
             return this;
         }
         
@@ -120,7 +120,7 @@ public class UploadInvoiceRequest {
         }
         
         public Builder taxExclusiveAmount(double taxExclusiveAmount) {
-            request.taxExclusiveAmount = taxExclusiveAmount;
+            request.taxExclusiveAmount = (int) taxExclusiveAmount;
             return this;
         }
         
@@ -145,11 +145,11 @@ public class UploadInvoiceRequest {
     public String getSupplierTaxNo() { return supplierTaxNo; }
     public void setSupplierTaxNo(String supplierTaxNo) { this.supplierTaxNo = supplierTaxNo; }
     
-    public double getInvoiceAmount() { return invoiceAmount; }
-    public void setInvoiceAmount(double invoiceAmount) { this.invoiceAmount = invoiceAmount; }
+    public int getInvoiceAmount() { return invoiceAmount; }
+    public void setInvoiceAmount(int invoiceAmount) { this.invoiceAmount = invoiceAmount; }
     
-    public double getRemainingAmount() { return remainingAmount; }
-    public void setRemainingAmount(double remainingAmount) { this.remainingAmount = remainingAmount; }
+    public int getRemainingAmount() { return remainingAmount; }
+    public void setRemainingAmount(int remainingAmount) { this.remainingAmount = remainingAmount; }
     
     public String getCurrencyType() { return currencyType; }
     public void setCurrencyType(String currencyType) { this.currencyType = currencyType; }
@@ -172,8 +172,8 @@ public class UploadInvoiceRequest {
     public String getHashCode() { return hashCode; }
     public void setHashCode(String hashCode) { this.hashCode = hashCode; }
     
-    public double getTaxExclusiveAmount() { return taxExclusiveAmount; }
-    public void setTaxExclusiveAmount(double taxExclusiveAmount) { this.taxExclusiveAmount = taxExclusiveAmount; }
+    public int getTaxExclusiveAmount() { return taxExclusiveAmount; }
+    public void setTaxExclusiveAmount(int taxExclusiveAmount) { this.taxExclusiveAmount = taxExclusiveAmount; }
     
     public String getFileName() { return fileName; }
     public void setFileName(String fileName) { this.fileName = fileName; }

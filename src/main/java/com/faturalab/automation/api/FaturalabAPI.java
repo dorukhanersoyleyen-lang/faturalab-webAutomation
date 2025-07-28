@@ -79,15 +79,19 @@ public class FaturalabAPI {
             jsonNode.put("taxNumber", environment.getTaxNumber());
             String requestParam = objectMapper.writeValueAsString(jsonNode);
             
-            log.info("=== AUTHENTICATION REQUEST DEBUG ===");
+            log.info("=== AUTHENTICATION REQUEST ===");
+            log.info("Endpoint: POST {}/authenticate", environment.getHost());
+            log.info("Headers:");
+            log.info("  Content-Type: application/x-www-form-urlencoded; charset=UTF-8");
+            log.info("  Accept: application/json");
+            log.info("  FLINTEGRATIONHEADERPARAMS: {}", headerValue);
+            log.info("Request Body:");
+            log.info("  authenticateParam={}", requestParam);
             log.info("Environment Details:");
             log.info("  Alias: '{}'", environment.getAlias());
-            log.info("  Password: '{}'", environment.getPassword());
             log.info("  Tax Number: '{}'", environment.getTaxNumber());
             log.info("  API Key: '{}'", environment.getApiKey());
-            log.info("JSON Payload: {}", requestParam);
-            log.info("Header Value: {}", headerValue);
-            log.info("=====================================");
+            log.info("================================");
             
             // Send request with UTF-8 encoding
             log.info("Sending authentication request with UTF-8 encoding...");
@@ -97,12 +101,12 @@ public class FaturalabAPI {
                     .formParam("authenticateParam", requestParam)
                     .post("/authenticate");
                     
-            log.info("Authentication response - Status: {}, Body: {}", lastResponse.getStatusCode(), lastResponse.getBody().asString());
+            log.info("=== AUTHENTICATION RESPONSE ===");
+            log.info("Status Code: {}", lastResponse.getStatusCode());
+            log.info("Response Headers: {}", lastResponse.getHeaders());
+            log.info("Response Body: {}", lastResponse.getBody().asString());
+            log.info("==================================");
                     
-            log.info("Authentication response status: {}", lastResponse.getStatusCode());
-            String responseBody = lastResponse.getBody().asString();
-            log.info("Response body: {}", responseBody);
-            
             // Extract sessionId if successful
             if (lastResponse.getStatusCode() == 200) {
                 try {
@@ -114,7 +118,7 @@ public class FaturalabAPI {
                     if (apiResponse.isSuccess() && apiResponse.getResult() != null) {
                         this.sessionId = apiResponse.getResult().getSessionId();
                         environment.setSessionId(this.sessionId);
-                        log.info("Session ID retrieved: {}", sessionId);
+                        log.info("✅ Session ID extracted: {}", sessionId);
                     }
                 } catch (Exception e) {
                     log.error("Error parsing authentication response", e);
@@ -135,9 +139,38 @@ public class FaturalabAPI {
         try {
             String requestParam = objectMapper.writeValueAsString(request);
             
+            log.info("=== UPLOAD INVOICE REQUEST ===");
+            log.info("Endpoint: POST {}/invoice/upload", environment.getHost());
+            log.info("Headers:");
+            log.info("  Content-Type: application/x-www-form-urlencoded; charset=UTF-8");
+            log.info("  Accept: application/json");
+            Map<String, String> headerParams = new HashMap<>();
+            headerParams.put("apiKey", environment.getApiKey());
+            if (sessionId != null && !sessionId.isEmpty()) {
+                headerParams.put("sessionId", sessionId);
+            }
+            log.info("  FLINTEGRATIONHEADERPARAMS: {}", objectMapper.writeValueAsString(headerParams));
+            log.info("Request Body:");
+            log.info("  uploadInvoiceParam={}", requestParam);
+            log.info("Request Object Details:");
+            log.info("  Invoice No: {}", request.getInvoiceNo());
+            log.info("  Supplier Tax No: {}", request.getSupplierTaxNo());
+            log.info("  Invoice Amount: {}", request.getInvoiceAmount());
+            log.info("  Invoice Type: {}", request.getInvoiceType());
+            log.info("  Currency: {}", request.getCurrencyType());
+            log.info("  Invoice Date: {}", request.getInvoiceDate());
+            log.info("  Due Date: {}", request.getDueDate());
+            log.info("================================");
+            
             lastResponse = getAuthenticatedRequest()
                     .formParam("uploadInvoiceParam", requestParam)
                     .post("/invoice/upload");
+                    
+            log.info("=== UPLOAD INVOICE RESPONSE ===");
+            log.info("Status Code: {}", lastResponse.getStatusCode());
+            log.info("Response Headers: {}", lastResponse.getHeaders());
+            log.info("Response Body: {}", lastResponse.getBody().asString());
+            log.info("==================================");
                     
             log.info("Upload invoice response status: {}", lastResponse.getStatusCode());
             return lastResponse;
@@ -154,9 +187,34 @@ public class FaturalabAPI {
         try {
             String requestParam = objectMapper.writeValueAsString(request);
             
+            log.info("=== GET INVOICE HISTORY REQUEST ===");
+            log.info("Endpoint: POST {}/invoice/history", environment.getHost());
+            log.info("Headers:");
+            log.info("  Content-Type: application/x-www-form-urlencoded; charset=UTF-8");
+            log.info("  Accept: application/json");
+            Map<String, String> headerParams = new HashMap<>();
+            headerParams.put("apiKey", environment.getApiKey());
+            if (sessionId != null && !sessionId.isEmpty()) {
+                headerParams.put("sessionId", sessionId);
+            }
+            log.info("  FLINTEGRATIONHEADERPARAMS: {}", objectMapper.writeValueAsString(headerParams));
+            log.info("Request Body:");
+            log.info("  invoiceHistoryParam={}", requestParam);
+            log.info("Request Object Details:");
+            log.info("  From Date: {}", request.getFromDate());
+            log.info("  To Date: {}", request.getToDate());
+            log.info("  Only Last State: {}", request.isOnlyLastState());
+            log.info("================================");
+            
             lastResponse = getAuthenticatedRequest()
                     .formParam("invoiceHistoryParam", requestParam)
                     .post("/invoice/history");
+                    
+            log.info("=== GET INVOICE HISTORY RESPONSE ===");
+            log.info("Status Code: {}", lastResponse.getStatusCode());
+            log.info("Response Headers: {}", lastResponse.getHeaders());
+            log.info("Response Body: {}", lastResponse.getBody().asString());
+            log.info("==================================");
                     
             log.info("Invoice history response status: {}", lastResponse.getStatusCode());
             return lastResponse;
@@ -173,9 +231,33 @@ public class FaturalabAPI {
         try {
             String requestParam = objectMapper.writeValueAsString(request);
             
+            log.info("=== DELETE INVOICE REQUEST ===");
+            log.info("Endpoint: POST {}/invoice/delete", environment.getHost());
+            log.info("Headers:");
+            log.info("  Content-Type: application/x-www-form-urlencoded; charset=UTF-8");
+            log.info("  Accept: application/json");
+            Map<String, String> headerParams = new HashMap<>();
+            headerParams.put("apiKey", environment.getApiKey());
+            if (sessionId != null && !sessionId.isEmpty()) {
+                headerParams.put("sessionId", sessionId);
+            }
+            log.info("  FLINTEGRATIONHEADERPARAMS: {}", objectMapper.writeValueAsString(headerParams));
+            log.info("Request Body:");
+            log.info("  deleteInvoiceParam={}", requestParam);
+            log.info("Request Object Details:");
+            log.info("  Invoice No: {}", request.getInvoiceNo());
+            log.info("  Supplier Tax No: {}", request.getSupplierTaxNo());
+            log.info("================================");
+            
             lastResponse = getAuthenticatedRequest()
                     .formParam("deleteInvoiceParam", requestParam)
                     .post("/invoice/delete");
+                    
+            log.info("=== DELETE INVOICE RESPONSE ===");
+            log.info("Status Code: {}", lastResponse.getStatusCode());
+            log.info("Response Headers: {}", lastResponse.getHeaders());
+            log.info("Response Body: {}", lastResponse.getBody().asString());
+            log.info("==================================");
                     
             log.info("Delete invoice response status: {}", lastResponse.getStatusCode());
             return lastResponse;
@@ -204,7 +286,7 @@ public class FaturalabAPI {
     }
     
     public String getCurrentDateTimeISO() {
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXX");  // XX = +0300, XXX = +03:00
         return sdf.format(new Date());
     }
     

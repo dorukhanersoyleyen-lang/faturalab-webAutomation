@@ -1,11 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
-<suite name="Faturalab Web Automation Test Suite" parallel="tests" thread-count="2">
-    <test name="Web Tests">
-        <parameter name="cucumber.glue" value="com.faturalab.automation.stepdefinitions"/>
-        <parameter name="cucumber.features" value="src/test/resources/features"/>
+
+<!-- 
+    Faturalab Full Test Automation Suite
+    ====================================
+    
+    TEK RUNNER - HER ŞEY BURADAN!
+    - Tüm Feature'lar: API + Web testleri
+    - Otomatik Browser Rapor Açma
+    
+    Usage: IntelliJ'de Right-click -> Run testng.xml
+-->
+
+<suite name="Faturalab Full Test Suite" parallel="false" thread-count="1">
+    
+    <!-- Listeners for automatic report opening -->
+    <listeners>
+        <listener class-name="com.faturalab.automation.listeners.TestReportListener" />
+    </listeners>
+    
+    <!-- Single Test: ALL Features - API + Web -->
+    <test name="All-Tests" enabled="true">
         <classes>
-                            <class name="com.faturalab.automation.runner.TestRunner" />
+            <class name="com.faturalab.automation.runner.TestRunner" />
         </classes>
     </test>
+    
 </suite> 

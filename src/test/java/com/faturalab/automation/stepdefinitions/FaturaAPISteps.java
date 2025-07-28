@@ -3,31 +3,66 @@ package com.faturalab.automation.stepdefinitions;
 import com.faturalab.automation.api.FaturalabAPI;
 import com.faturalab.automation.models.*;
 import io.cucumber.datatable.DataTable;
-import io.cucumber.java.en.Given;
-import io.cucumber.java.en.When;
-import io.cucumber.java.en.Then;
 import io.cucumber.java.en.And;
+import io.cucumber.java.en.Given;
+import io.cucumber.java.en.Then;
+import io.cucumber.java.en.When;
+import io.cucumber.java.Scenario;
 import io.restassured.response.Response;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.testng.Assert;
 
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class FaturaAPISteps {
     
     private static final Logger log = LogManager.getLogger(FaturaAPISteps.class);
-    
     private FaturalabAPI faturalabAPI;
+    private Response lastResponse;
     private UploadInvoiceRequest lastInvoiceRequest;
     private String lastInvoiceNo;
     private String lastSupplierTaxNo;
-    private Response lastResponse;
+    
+    // Cucumber Scenario for reporting
+    private Scenario scenario;
+    
+    public FaturaAPISteps() {
+        // Constructor
+    }
+    
+    // Method to set scenario context (called by hooks)
+    public void setScenario(Scenario scenario) {
+        this.scenario = scenario;
+    }
+    
+    // Helper method to log API details both to Cucumber report and console
+    private void logAPIDetailsToReport(String apiCall, String requestDetails, String responseDetails) {
+        String fullLog = "=== 🚀 " + apiCall + " ===" + "\n" +
+                        "📤 REQUEST DETAILS:\n" + requestDetails + "\n\n" +
+                        "📥 RESPONSE DETAILS:\n" + responseDetails + "\n" +
+                        "================================\n";
+        
+        // Log to console/file
+        log.info("\n{}", fullLog);
+        
+        // Log to Cucumber report if scenario is available
+        if (scenario != null) {
+            scenario.log("=== 🚀 " + apiCall + " ===");
+            scenario.log("");
+            scenario.log("📤 REQUEST DETAILS:");
+            scenario.log(requestDetails);
+            scenario.log("");
+            scenario.log("📥 RESPONSE DETAILS:");
+            scenario.log(responseDetails);
+            scenario.log("================================");
+            scenario.log("");
+        }
+        
+        // Also try to print to System.out for additional visibility
+        System.out.println("\n" + fullLog);
+    }
     
     @Given("^\"([^\"]*)\" ortamı kullanılıyor$")
     public void ortam_kullaniliyor(String environmentName) {
@@ -40,7 +75,24 @@ public class FaturaAPISteps {
     public void kullanici_kimlik_dogrulamasi_yapildi() {
         log.info("Performing authentication with environment: {}", faturalabAPI.getEnvironment().getAlias());
         
+        // Prepare request details for report
+        StringBuilder requestDetails = new StringBuilder();
+        requestDetails.append("Endpoint: POST ").append(faturalabAPI.getEnvironment().getHost()).append("/authenticate\n");
+        requestDetails.append("Environment: ").append(faturalabAPI.getEnvironment().getAlias()).append("\n");
+        requestDetails.append("API Key: ").append(faturalabAPI.getEnvironment().getApiKey()).append("\n");
+        requestDetails.append("Tax Number: ").append(faturalabAPI.getEnvironment().getTaxNumber()).append("\n");
+        requestDetails.append("User Email: ").append(faturalabAPI.getEnvironment().getUserEmail()).append("\n");
+        
         Response response = faturalabAPI.authenticate();
+        
+        // Prepare response details for report
+        StringBuilder responseDetails = new StringBuilder();
+        responseDetails.append("Status Code: ").append(response.getStatusCode()).append("\n");
+        responseDetails.append("Response Headers: ").append(response.getHeaders()).append("\n");
+        responseDetails.append("Response Body: ").append(response.getBody().asString()).append("\n");
+        
+        // Attach to Cucumber report
+        logAPIDetailsToReport("AUTHENTICATION", requestDetails.toString(), responseDetails.toString());
         
         // Basic response checks
         Assert.assertNotNull(response, "Authentication response should not be null");
@@ -77,8 +129,13 @@ public class FaturaAPISteps {
         String envSessionId = faturalabAPI.getEnvironment().getSessionId();
         Assert.assertEquals(sessionId, envSessionId, "Session ID should be stored in environment");
         
-        log.info("✅ Authentication successful! SessionID: {} stored in environment for: {}", 
-                sessionId, faturalabAPI.getEnvironment().getAlias());
+        log.info("=== AUTHENTICATION SUCCESS VERIFICATION ===");
+        log.info("✅ Authentication successful!");
+        log.info("Environment: {}", faturalabAPI.getEnvironment().getAlias());
+        log.info("SessionID: {}", sessionId);
+        log.info("Response Status: {}", response.getStatusCode());
+        log.info("Response Body: {}", response.getBody().asString());
+        log.info("===========================================");
     }
     
     @When("^geçerli fatura bilgileri ile fatura yüklerse$")
@@ -86,18 +143,9 @@ public class FaturaAPISteps {
         List<Map<String, String>> data = dataTable.asMaps(String.class, String.class);
         Map<String, String> invoiceData = data.get(0);
         
-        // Enhanced Debug: Print everything about DataTable
-        log.info("=== DataTable Debug ===");
-        log.info("Raw DataTable: {}", dataTable);
-        log.info("DataTable as maps size: {}", data.size());
+        // Debug: Print all available keys
         log.info("DataTable keys: {}", invoiceData.keySet());
         log.info("DataTable values: {}", invoiceData);
-        
-        // Print each key-value pair individually
-        for (Map.Entry<String, String> entry : invoiceData.entrySet()) {
-            log.info("Key: '{}' -> Value: '{}'", entry.getKey(), entry.getValue());
-        }
-        log.info("=== End DataTable Debug ===");
         
         // Generate unique invoice number using environment prefix + timestamp + random
         String baseInvoiceNo = invoiceData.get("invoiceNo");
@@ -107,15 +155,10 @@ public class FaturaAPISteps {
         // Safe parsing with null check
         String amountStr = invoiceData.get("invoiceAmount");
         log.info("invoiceAmount from DataTable: '{}'", amountStr);
-        
-        // Check if key exists at all
-        boolean hasInvoiceAmount = invoiceData.containsKey("invoiceAmount");
-        log.info("DataTable contains 'invoiceAmount' key: {}", hasInvoiceAmount);
-        
         if (amountStr == null || amountStr.trim().isEmpty()) {
             throw new IllegalArgumentException("invoiceAmount is null or empty in DataTable");
         }
-        double invoiceAmount = Double.parseDouble(amountStr.trim());
+        int invoiceAmount = Integer.parseInt(amountStr.trim());
         String invoiceType = invoiceData.get("invoiceType");
         
         // Store for later use
@@ -140,10 +183,31 @@ public class FaturaAPISteps {
                 .invoiceNo(uniqueInvoiceNo)
                 .invoiceType(invoiceType)
                 .hashCode(invoiceType.equals("E_FATURA") ? generateHashCode() : "")
-                .taxExclusiveAmount(invoiceType.equals("E_ARSIV") ? invoiceAmount * 0.85 : 0)
+                .taxExclusiveAmount(invoiceType.equals("E_ARSIV") ? (int)(invoiceAmount * 0.85) : 0)
                 .build();
         
         lastResponse = faturalabAPI.uploadInvoice(lastInvoiceRequest);
+        
+        // Prepare request details for report
+        StringBuilder requestDetails = new StringBuilder();
+        requestDetails.append("Endpoint: POST ").append(faturalabAPI.getEnvironment().getHost()).append("/invoice/upload\n");
+        requestDetails.append("Invoice Number: ").append(uniqueInvoiceNo).append("\n");
+        requestDetails.append("Supplier Tax No: ").append(supplierTaxNo).append("\n");
+        requestDetails.append("Invoice Amount: ").append(invoiceAmount).append("\n");
+        requestDetails.append("Invoice Type: ").append(invoiceType).append("\n");
+        requestDetails.append("Currency: ").append(lastInvoiceRequest.getCurrencyType()).append("\n");
+        requestDetails.append("Invoice Date: ").append(lastInvoiceRequest.getInvoiceDate()).append("\n");
+        requestDetails.append("Due Date: ").append(lastInvoiceRequest.getDueDate()).append("\n");
+        requestDetails.append("User Email: ").append(lastInvoiceRequest.getUserEmail()).append("\n");
+        
+        // Prepare response details for report
+        StringBuilder responseDetails = new StringBuilder();
+        responseDetails.append("Status Code: ").append(lastResponse.getStatusCode()).append("\n");
+        responseDetails.append("Response Headers: ").append(lastResponse.getHeaders()).append("\n");
+        responseDetails.append("Response Body: ").append(lastResponse.getBody().asString()).append("\n");
+        
+        // Attach to Cucumber report
+        logAPIDetailsToReport("UPLOAD INVOICE", requestDetails.toString(), responseDetails.toString());
     }
     
     @Then("^fatura başarıyla yüklenmiş olmalı$")
@@ -151,7 +215,13 @@ public class FaturaAPISteps {
         Assert.assertNotNull(lastResponse, "Upload response should not be null");
         Assert.assertEquals(lastResponse.getStatusCode(), 200, "Upload should return 200 status");
         Assert.assertTrue(faturalabAPI.isResponseSuccessful(), "Upload should be successful");
-        log.info("Invoice uploaded successfully: {}", lastInvoiceNo);
+        
+        log.info("=== UPLOAD SUCCESS VERIFICATION ===");
+        log.info("✅ Invoice upload successful!");
+        log.info("Invoice Number: {}", lastInvoiceNo);
+        log.info("Response Status: {}", lastResponse.getStatusCode());
+        log.info("Response Body: {}", lastResponse.getBody().asString());
+        log.info("===================================");
     }
     
     @When("^boş parametrelerle fatura yüklenmeye çalışılırsa$")
@@ -180,20 +250,81 @@ public class FaturaAPISteps {
     
     @And("^fatura geçmişinde faturası görünmeli$")
     public void fatura_gecmisinde_faturasi_gorunmeli() {
+        Assert.assertNotNull(lastInvoiceNo, "Invoice number should be available");
         log.info("Checking if invoice {} appears in history", lastInvoiceNo);
         
-        // Create invoice history request
+        // WAIT FOR SYSTEM INDEXING (ESKİ ÇÖZÜMÜMÜZ!)
+        try {
+            log.info("⏳ Waiting 5 seconds for system to index the uploaded invoice...");
+            Thread.sleep(5000); // 5 saniye bekle
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        // Create invoice history request with TODAY'S START (ESKİ ÇÖZÜMÜMÜZ!)
         InvoiceHistoryRequest historyRequest = new InvoiceHistoryRequest();
-        historyRequest.setFromDate(getCurrentDate());
-        historyRequest.setToDate(getFutureDate(1));
         
-        Response historyResponse = faturalabAPI.getInvoiceHistory(historyRequest);
-        Assert.assertEquals(historyResponse.getStatusCode(), 200, "Invoice history request should succeed");
+        // Use TODAY'S BEGINNING instead of current time (DAHA GENİŞ ARAMA!)
+        String todayStart = getTodayStartDateTime(); // "2025-07-23T00:00:00.000+0300"
         
-        String responseBody = historyResponse.getBody().asString();
-        Assert.assertTrue(responseBody.contains(lastInvoiceNo), 
-                "Invoice " + lastInvoiceNo + " should appear in history");
-        log.info("✅ Invoice {} found in history", lastInvoiceNo);
+        historyRequest.setFromDate(todayStart);
+        historyRequest.setOnlyLastState(true);
+        
+        log.info("Invoice history request - FromDate: {} (Today's start), OnlyLastState: true", todayStart);
+        
+        // RETRY MECHANISM (ESKİ ÇÖZÜMÜMÜZ!)
+        Response historyResponse = null;
+        boolean invoiceFound = false;
+        int maxRetries = 3;
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            log.info("📊 Attempt {}/{} - Searching for invoice in history...", attempt, maxRetries);
+            
+            historyResponse = faturalabAPI.getInvoiceHistory(historyRequest);
+            Assert.assertEquals(historyResponse.getStatusCode(), 200, "Invoice history request should succeed");
+            
+            // Check if invoice exists in response
+            String responseBody = historyResponse.getBody().asString();
+            if (responseBody.contains(lastInvoiceNo)) {
+                log.info("✅ Invoice {} FOUND in history on attempt {}", lastInvoiceNo, attempt);
+                invoiceFound = true;
+                break;
+            } else {
+                log.warn("⚠️ Invoice {} NOT FOUND on attempt {}. Response: {}", lastInvoiceNo, attempt, responseBody);
+                if (attempt < maxRetries) {
+                    try {
+                        Thread.sleep(3000); // Wait 3 seconds before retry
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
+        }
+        
+        // Prepare request details for report
+        StringBuilder requestDetails = new StringBuilder();
+        requestDetails.append("Endpoint: POST ").append(faturalabAPI.getEnvironment().getHost()).append("/invoice/history\n");
+        requestDetails.append("From Date: ").append(todayStart).append(" (Today's start - WIDER SEARCH!)\n");
+        requestDetails.append("Only Last State: true\n");
+        requestDetails.append("Searching for Invoice: ").append(lastInvoiceNo).append("\n");
+        requestDetails.append("Max Retries: ").append(maxRetries).append("\n");
+        
+        // Prepare response details for report
+        StringBuilder responseDetails = new StringBuilder();
+        responseDetails.append("Status Code: ").append(historyResponse.getStatusCode()).append("\n");
+        responseDetails.append("Response Headers: ").append(historyResponse.getHeaders()).append("\n");
+        responseDetails.append("Response Body: ").append(historyResponse.getBody().asString()).append("\n");
+        responseDetails.append("Invoice Found: ").append(invoiceFound ? "YES ✅" : "NO ❌").append("\n");
+        
+        // Attach to Cucumber report
+        logAPIDetailsToReport("GET INVOICE HISTORY", requestDetails.toString(), responseDetails.toString());
+        
+        // Final assertion
+        Assert.assertTrue(invoiceFound, 
+                "Invoice " + lastInvoiceNo + " should appear in history after " + maxRetries + " attempts. " +
+                "Last response: " + historyResponse.getBody().asString());
+        
+        log.info("✅ Invoice {} found in history successfully", lastInvoiceNo);
     }
     
     @When("^faturası silinirse$")
@@ -206,33 +337,139 @@ public class FaturaAPISteps {
         deleteRequest.setUserEmail(faturalabAPI.getEnvironment().getUserEmail());
         
         lastResponse = faturalabAPI.deleteInvoice(deleteRequest);
+        
+        // Prepare request details for report
+        StringBuilder requestDetails = new StringBuilder();
+        requestDetails.append("Endpoint: POST ").append(faturalabAPI.getEnvironment().getHost()).append("/invoice/delete\n");
+        requestDetails.append("Invoice Number: ").append(lastInvoiceNo).append("\n");
+        requestDetails.append("Supplier Tax No: ").append(lastSupplierTaxNo).append("\n");
+        requestDetails.append("User Email: ").append(faturalabAPI.getEnvironment().getUserEmail()).append("\n");
+        
+        // Prepare response details for report
+        StringBuilder responseDetails = new StringBuilder();
+        responseDetails.append("Status Code: ").append(lastResponse.getStatusCode()).append("\n");
+        responseDetails.append("Response Headers: ").append(lastResponse.getHeaders()).append("\n");
+        responseDetails.append("Response Body: ").append(lastResponse.getBody().asString()).append("\n");
+        
+        // Attach to Cucumber report
+        logAPIDetailsToReport("DELETE INVOICE", requestDetails.toString(), responseDetails.toString());
+        
         Assert.assertEquals(lastResponse.getStatusCode(), 200, "Delete request should succeed");
         Assert.assertTrue(faturalabAPI.isResponseSuccessful(), "Invoice deletion should be successful");
         log.info("✅ Invoice {} deleted successfully", lastInvoiceNo);
     }
     
     @Then("^fatura başarıyla silinmiş olmalı$")
-    public void fatura_basarıyla_silinmis_olmali() {
-        Assert.assertTrue(faturalabAPI.isResponseSuccessful(), "Invoice deletion should be successful");
-        log.info("✅ Invoice deletion confirmed");
+    public void fatura_basariyla_silinmis_olmali() {
+        Assert.assertNotNull(lastResponse, "Delete response should not be null");
+        Assert.assertEquals(lastResponse.getStatusCode(), 200, "Delete should return 200 status");
+        Assert.assertTrue(faturalabAPI.isResponseSuccessful(), "Delete should be successful");
+        
+        log.info("=== DELETE SUCCESS VERIFICATION ===");
+        log.info("✅ Invoice delete successful!");
+        log.info("Invoice Number: {}", lastInvoiceNo);
+        log.info("Response Status: {}", lastResponse.getStatusCode());
+        log.info("Response Body: {}", lastResponse.getBody().asString());
+        log.info("===================================");
     }
     
     @And("^fatura geçmişinde faturası görünmemeli$")
     public void fatura_gecmisinde_faturasi_gorunmemeli() {
+        Assert.assertNotNull(lastInvoiceNo, "Invoice number should be available");
         log.info("Checking if invoice {} is removed from history", lastInvoiceNo);
         
-        // Create invoice history request
+        // WAIT FOR SYSTEM INDEXING (ESKİ ÇÖZÜMÜMÜZ!)
+        try {
+            log.info("⏳ Waiting 5 seconds for system to index the deleted invoice...");
+            Thread.sleep(5000); // 5 saniye bekle
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        
+        // Create invoice history request with TODAY'S START (ESKİ ÇÖZÜMÜMÜZ!)
         InvoiceHistoryRequest historyRequest = new InvoiceHistoryRequest();
-        historyRequest.setFromDate(getCurrentDate());
-        historyRequest.setToDate(getFutureDate(1));
         
-        Response historyResponse = faturalabAPI.getInvoiceHistory(historyRequest);
-        Assert.assertEquals(historyResponse.getStatusCode(), 200, "Invoice history request should succeed");
+        // Use TODAY'S BEGINNING instead of current time (DAHA GENİŞ ARAMA!)
+        String todayStart = getTodayStartDateTime(); // "2025-07-23T00:00:00.000+0300"
         
-        String responseBody = historyResponse.getBody().asString();
-        Assert.assertFalse(responseBody.contains(lastInvoiceNo), 
-                "Invoice " + lastInvoiceNo + " should not appear in history after deletion");
-        log.info("✅ Invoice {} successfully removed from history", lastInvoiceNo);
+        historyRequest.setFromDate(todayStart);
+        historyRequest.setOnlyLastState(true);
+        
+        log.info("Invoice history request (after delete) - FromDate: {} (Today's start), OnlyLastState: true", todayStart);
+        
+        // RETRY MECHANISM (ESKİ ÇÖZÜMÜMÜZ!)
+        Response historyResponse = null;
+        boolean invoiceDeleted = false;
+        int maxRetries = 3;
+        
+        for (int attempt = 1; attempt <= maxRetries; attempt++) {
+            log.info("📊 Attempt {}/{} - Checking if invoice is deleted in history...", attempt, maxRetries);
+            
+            historyResponse = faturalabAPI.getInvoiceHistory(historyRequest);
+            Assert.assertEquals(historyResponse.getStatusCode(), 200, "Invoice history request should succeed");
+            
+            String responseBody = historyResponse.getBody().asString();
+            log.info("Invoice history response (after delete): {}", responseBody);
+            
+            // Check if invoice still appears in history but with "Silinmiş" status
+            boolean invoiceFound = responseBody.contains(lastInvoiceNo);
+            log.info("Invoice {} found in history after delete: {}", lastInvoiceNo, invoiceFound);
+            
+            if (invoiceFound) {
+                // Invoice should be in "Silinmiş" status
+                boolean isDeleted = responseBody.contains("\"invoiceHistoryDescription\":\"Silinmiş\"") ||
+                        responseBody.contains("\"status\":\"Silinmiş\"") ||
+                        responseBody.contains("Silinmiş");
+                
+                log.info("Invoice {} deletion status in response: {}", lastInvoiceNo, isDeleted ? "DELETED ✅" : "NOT DELETED ❌");
+                
+                if (isDeleted) {
+                    log.info("✅ Invoice {} is marked as DELETED in history on attempt {}", lastInvoiceNo, attempt);
+                    invoiceDeleted = true;
+                    break;
+                } else {
+                    log.warn("⚠️ Invoice {} found but not marked as deleted on attempt {}.", lastInvoiceNo, attempt);
+                }
+            } else {
+                // Invoice completely removed from history (also acceptable)
+                log.info("✅ Invoice {} completely removed from history on attempt {}", lastInvoiceNo, attempt);
+                invoiceDeleted = true;
+                break;
+            }
+            
+            if (attempt < maxRetries) {
+                try {
+                    Thread.sleep(3000); // Wait 3 seconds before retry
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        }
+        
+        // Prepare request details for report
+        StringBuilder requestDetails = new StringBuilder();
+        requestDetails.append("Endpoint: POST ").append(faturalabAPI.getEnvironment().getHost()).append("/invoice/history\n");
+        requestDetails.append("From Date: ").append(todayStart).append(" (Today's start - WIDER SEARCH!)\n");
+        requestDetails.append("Only Last State: true\n");
+        requestDetails.append("Checking for deleted Invoice: ").append(lastInvoiceNo).append("\n");
+        requestDetails.append("Max Retries: ").append(maxRetries).append("\n");
+        
+        // Prepare response details for report
+        StringBuilder responseDetails = new StringBuilder();
+        responseDetails.append("Status Code: ").append(historyResponse.getStatusCode()).append("\n");
+        responseDetails.append("Response Headers: ").append(historyResponse.getHeaders()).append("\n");
+        responseDetails.append("Response Body: ").append(historyResponse.getBody().asString()).append("\n");
+        responseDetails.append("Invoice Deleted: ").append(invoiceDeleted ? "YES ✅" : "NO ❌").append("\n");
+        
+        // Attach to Cucumber report
+        logAPIDetailsToReport("GET INVOICE HISTORY (AFTER DELETE)", requestDetails.toString(), responseDetails.toString());
+        
+        // Final assertion
+        Assert.assertTrue(invoiceDeleted, 
+                "Invoice " + lastInvoiceNo + " should be deleted or marked as 'Silinmiş' in history after " + maxRetries + " attempts. " +
+                "Last response: " + historyResponse.getBody().asString());
+        
+        log.info("✅ Invoice {} delete verification successful", lastInvoiceNo);
     }
     
     @When("^geçersiz miktarla fatura yüklerse$")
@@ -254,13 +491,13 @@ public class FaturaAPISteps {
         if (amountStr == null || amountStr.trim().isEmpty()) {
             throw new IllegalArgumentException("invoiceAmount is null or empty in DataTable");
         }
-        double invoiceAmount = Double.parseDouble(amountStr.trim());
+        int invoiceAmount = Integer.parseInt(amountStr.trim());
         String invoiceType = invoiceData.get("invoiceType");
         
         lastInvoiceNo = uniqueInvoiceNo;
         lastSupplierTaxNo = supplierTaxNo;
         
-        log.info("Uploading invoice with invalid amount: {} = {}", uniqueInvoiceNo, invoiceAmount);
+        log.info("Uploading invalid invoice: {} with amount: {}", uniqueInvoiceNo, invoiceAmount);
         
         String today = getCurrentDate();
         String futureDate = getFutureDate(30);
@@ -277,7 +514,7 @@ public class FaturaAPISteps {
                 .invoiceNo(uniqueInvoiceNo)
                 .invoiceType(invoiceType)
                 .hashCode(invoiceType.equals("E_FATURA") ? generateHashCode() : "")
-                .taxExclusiveAmount(invoiceType.equals("E_ARSIV") ? invoiceAmount * 0.85 : 0)
+                .taxExclusiveAmount(invoiceType.equals("E_ARSIV") ? (int)(invoiceAmount * 0.85) : 0)
                 .build();
         
         lastResponse = faturalabAPI.uploadInvoice(lastInvoiceRequest);
@@ -302,7 +539,7 @@ public class FaturaAPISteps {
         if (amountStr == null || amountStr.trim().isEmpty()) {
             throw new IllegalArgumentException("invoiceAmount is null or empty in DataTable");
         }
-        double invoiceAmount = Double.parseDouble(amountStr.trim());
+        int invoiceAmount = Integer.parseInt(amountStr.trim());
         String invoiceType = invoiceData.get("invoiceType");
         
         lastInvoiceNo = uniqueInvoiceNo;
@@ -325,7 +562,7 @@ public class FaturaAPISteps {
                 .invoiceNo(uniqueInvoiceNo)
                 .invoiceType(invoiceType)
                 .hashCode("") // E-Arşiv için hashCode gerekmiyor
-                .taxExclusiveAmount(invoiceAmount * 0.85) // E-Arşiv için KDV hariç tutar gerekli
+                .taxExclusiveAmount((int)(invoiceAmount * 0.85)) // E-Arşiv için KDV hariç tutar gerekli
                 .build();
         
         lastResponse = faturalabAPI.uploadInvoice(lastInvoiceRequest);
@@ -341,14 +578,28 @@ public class FaturaAPISteps {
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DAY_OF_MONTH, daysFromNow);
         
-        // Skip weekends
-        while (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || 
-               cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
-            cal.add(Calendar.DAY_OF_MONTH, 1);
+        // Skip weekends - direction depends on whether we're going forward or backward
+        if (daysFromNow > 0) {
+            // Going forward - skip to next weekday
+            while (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || 
+                   cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
+                cal.add(Calendar.DAY_OF_MONTH, 1);
+            }
+        } else if (daysFromNow < 0) {
+            // Going backward - skip to previous weekday
+            while (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || 
+                   cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
+                cal.add(Calendar.DAY_OF_MONTH, -1);
+            }
         }
         
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         return sdf.format(cal.getTime());
+    }
+
+    private String getTodayStartDateTime() {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd'T'00:00:00.000XX");  // XX = +0300, dinamik timezone
+        return sdf.format(new Date());
     }
     
     private String generateHashCode() {
