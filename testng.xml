@@ -6,7 +6,7 @@
     ====================================
     
     TEK RUNNER - HER ŞEY BURADAN!
-    - Tüm Feature'lar: API + Web testleri
+    - Tüm Feature'lar: API + Web + Auction testleri
     - Otomatik Browser Rapor Açma
     
     Usage: IntelliJ'de Right-click -> Run testng.xml
@@ -19,7 +19,7 @@
         <listener class-name="com.faturalab.automation.listeners.TestReportListener" />
     </listeners>
     
-    <!-- Single Test: ALL Features - API + Web -->
+    <!-- Single Test: ALL Features - API + Web + Auction -->
     <test name="All-Tests" enabled="true">
         <classes>
             <class name="com.faturalab.automation.runner.TestRunner" />

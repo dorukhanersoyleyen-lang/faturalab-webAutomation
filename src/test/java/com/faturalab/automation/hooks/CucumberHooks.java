@@ -1,6 +1,8 @@
 package com.faturalab.automation.hooks;
 
-import com.faturalab.automation.stepdefinitions.FaturaAPISteps;
+import com.faturalab.automation.api.FaturalabAPI;
+import com.faturalab.automation.stepdefinitions.invoice.InvoiceManagementStepDefs;
+import com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStepDefs;
 import io.cucumber.java.After;
 import io.cucumber.java.Before;
 import io.cucumber.java.Scenario;
@@ -10,10 +12,25 @@ import org.apache.logging.log4j.Logger;
 public class CucumberHooks {
     
     private static final Logger log = LogManager.getLogger(CucumberHooks.class);
-    private final FaturaAPISteps faturaAPISteps;
+    private final InvoiceManagementStepDefs invoiceStepDefs;
+    private final AuctionInvoiceUploadStepDefs auctionStepDefs;
     
-    public CucumberHooks(FaturaAPISteps faturaAPISteps) {
-        this.faturaAPISteps = faturaAPISteps;
+    // Static shared API instance
+    private static FaturalabAPI sharedFaturalabAPI;
+    
+    public CucumberHooks(InvoiceManagementStepDefs invoiceStepDefs, AuctionInvoiceUploadStepDefs auctionStepDefs) {
+        this.invoiceStepDefs = invoiceStepDefs;
+        this.auctionStepDefs = auctionStepDefs;
+    }
+    
+    // Static methods to share API instance
+    public static void setSharedAPI(FaturalabAPI api) {
+        sharedFaturalabAPI = api;
+        log.info("Shared FaturalabAPI instance set in CucumberHooks");
+    }
+    
+    public static FaturalabAPI getSharedAPI() {
+        return sharedFaturalabAPI;
     }
     
     @Before
@@ -24,7 +41,8 @@ public class CucumberHooks {
         log.info("=======================");
         
         // Inject scenario context into step definitions
-        faturaAPISteps.setScenario(scenario);
+        invoiceStepDefs.setScenario(scenario);
+        auctionStepDefs.setScenario(scenario);
         
         // Log scenario info to report using scenario.log()
         scenario.log("=== 🎯 SCENARIO INFORMATION ===");
