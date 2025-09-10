@@ -31,6 +31,8 @@ public class AuctionAPI {
         this.environment = environment;
         this.sessionId = sessionId;
         this.objectMapper = new ObjectMapper();
+        // Exclude null fields to avoid sending "invoiceNo": null etc. (match successful cURL body)
+        this.objectMapper.setSerializationInclusion(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL);
         
         // Configure RestAssured
         RestAssured.baseURI = environment.getHost();
@@ -72,7 +74,7 @@ public class AuctionAPI {
         log.info("=== UPLOAD AUCTION ===");
         log.info("Reference: {}", request.getReferenceNo());
         log.info("Invoice Count: {}", request.getInvoices().size());
-        log.info("Total Amount: {}", request.getTotalPayableAmount());
+        log.info("Total Amount: {}", formatAmount(request.getTotalPayableAmount()));
         log.info("Locked: {}", request.getLocked());
         
         try {
@@ -493,6 +495,13 @@ public class AuctionAPI {
             }
         }
         return null;
+    }
+    
+    // Helper: log numeric without trailing .0 when integer
+    private String formatAmount(Double v) {
+        if (v == null) return "null";
+        if (Math.floor(v) == v.doubleValue()) return String.valueOf(v.longValue());
+        return v.toString();
     }
     
     // Getters

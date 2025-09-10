@@ -1,6 +1,7 @@
 package com.faturalab.automation.models.auction;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import java.util.List;
 
 public class UploadAuctionRequest {
@@ -12,9 +13,11 @@ public class UploadAuctionRequest {
     private Boolean locked;
     
     @JsonProperty("totalPayableAmount")
+    @JsonSerialize(using = AmountSerializer.class)
     private Double totalPayableAmount;
     
     @JsonProperty("totalRequestedAmount")
+    @JsonSerialize(using = AmountSerializer.class)
     private Double totalRequestedAmount;
     
     @JsonProperty("referenceNo")

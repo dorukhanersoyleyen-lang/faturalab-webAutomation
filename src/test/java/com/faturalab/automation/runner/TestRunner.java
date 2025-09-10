@@ -19,6 +19,9 @@ import java.util.List;
 import com.faturalab.automation.stepdefinitions.HomePageSteps;
 import com.faturalab.automation.stepdefinitions.FaturalabAcademySteps;
 import com.faturalab.automation.stepdefinitions.Hooks;
+// Force include invoice and auction stepdefs
+import com.faturalab.automation.stepdefinitions.invoice.InvoiceManagementStepDefs;
+import com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStepDefs;
 
 @CucumberOptions(
         features = {"src/test/resources/features"},
@@ -38,8 +41,8 @@ public class TestRunner extends AbstractTestNGCucumberTests {
     static {
         // Ensure step definitions path is correctly set for the JVM
         String gluePackage = "com.faturalab.automation.stepdefinitions";
-        System.setProperty("cucumber.glue", gluePackage);
-        System.out.println("Cucumber glue package is set to: " + gluePackage);
+        System.setProperty("cucumber.glue", gluePackage + ",com.faturalab.automation.stepdefinitions.invoice,com.faturalab.automation.hooks");
+        System.out.println("Cucumber glue package is set to: " + System.getProperty("cucumber.glue"));
         
         // Force step definition class loading
         try {
@@ -47,6 +50,8 @@ public class TestRunner extends AbstractTestNGCucumberTests {
             Class.forName("com.faturalab.automation.stepdefinitions.HomePageSteps");
             Class.forName("com.faturalab.automation.stepdefinitions.FaturalabAcademySteps");
             Class.forName("com.faturalab.automation.stepdefinitions.Hooks");
+            Class.forName("com.faturalab.automation.stepdefinitions.invoice.InvoiceManagementStepDefs");
+            Class.forName("com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStepDefs");
             System.out.println("Step definition classes loaded successfully.");
         } catch (ClassNotFoundException e) {
             System.err.println("Step definition classes could not be loaded: " + e.getMessage());
@@ -67,6 +72,12 @@ public class TestRunner extends AbstractTestNGCucumberTests {
             
             System.out.println("Loading Hooks class...");
             new Hooks();
+            
+            System.out.println("Loading InvoiceManagementStepDefs class...");
+            new InvoiceManagementStepDefs();
+            
+            System.out.println("Loading AuctionInvoiceUploadStepDefs class...");
+            new AuctionInvoiceUploadStepDefs();
             
             System.out.println("All step definition classes loaded successfully!");
         } catch (Exception e) {

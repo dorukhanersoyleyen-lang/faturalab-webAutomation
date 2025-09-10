@@ -21,6 +21,9 @@ import org.testng.Assert;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
+// Additions for error parsing
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 public class InvoiceManagementStepDefs {
     
     private static final Logger log = LogManager.getLogger(InvoiceManagementStepDefs.class);
@@ -250,6 +253,13 @@ public class InvoiceManagementStepDefs {
     
     @Then("^hata mesajı alınmalı$")
     public void hata_mesaji_alinmali() {
+        if (lastResponse == null) {
+            // Fallback to shared last response (e.g., auction steps set it)
+            Response shared = CucumberHooks.getSharedLastResponse();
+            if (shared != null) {
+                lastResponse = shared;
+            }
+        }
         Assert.assertNotNull(lastResponse, "Response should not be null");
         Assert.assertTrue(lastResponse.getStatusCode() >= 400 || !faturalabAPI.isResponseSuccessful(), 
                 "Should receive error response");
@@ -582,6 +592,188 @@ public class InvoiceManagementStepDefs {
         lastResponse = faturalabAPI.uploadInvoice(lastInvoiceRequest);
     }
     
+    @When("^aşağıdaki alanlarla fatura yüklenmeye çalışılırsa$")
+    public void asagidaki_alanlarla_fatura_yuklenmeye_calisilirsa(DataTable dataTable) {
+        // Ensure API instance is available
+        if (this.faturalabAPI == null) {
+            FaturalabAPI shared = CucumberHooks.getSharedAPI();
+            if (shared != null) {
+                this.faturalabAPI = shared;
+            } else {
+                String envName = System.getProperty("test.env", System.getProperty("faturalab.env", "dev.faturalab.buyer.albc"));
+                log.warn("FaturalabAPI is null. Initializing with environment: {}", envName);
+                this.faturalabAPI = new FaturalabAPI(EnvironmentManager.loadEnvironment(envName));
+                Response auth = this.faturalabAPI.authenticate();
+                Assert.assertNotNull(auth, "Authentication response should not be null in fallback init");
+            }
+        }
+        
+        List<Map<String, String>> data = dataTable.asMaps(String.class, String.class);
+        Map<String, String> invoiceData = data.get(0);
+        log.info("DataTable keys: {}", invoiceData.keySet());
+        log.info("DataTable values: {}", invoiceData);
+        
+        String baseInvoiceNo = invoiceData.get("invoiceNo");
+        String supplierTaxNo = invoiceData.get("supplierTaxNo");
+        String amountStr = invoiceData.get("invoiceAmount");
+        String invoiceType = invoiceData.get("invoiceType");
+        String currencyType = Optional.ofNullable(invoiceData.get("currencyType")).orElse("TL");
+        String providedHashCode = invoiceData.get("hashCode");
+        String taxExclusiveAmountStr = invoiceData.get("taxExclusiveAmount");
+        
+        if (amountStr == null || amountStr.trim().isEmpty()) {
+            throw new IllegalArgumentException("invoiceAmount is null or empty in DataTable");
+        }
+        int invoiceAmount = Integer.parseInt(amountStr.trim());
+        
+        // Generate invoice number: if validation-specific fields present -> always unique; else use provided if not blank
+        boolean hasValidationFields = invoiceData.containsKey("invoiceDate") || invoiceData.containsKey("dueDate") || invoiceData.containsKey("hashCode") || invoiceData.containsKey("taxExclusiveAmount") || (invoiceData.containsKey("currencyType") && invoiceData.get("currencyType") != null && !invoiceData.get("currencyType").trim().equalsIgnoreCase("TL"));
+        String uniqueInvoiceNo = hasValidationFields
+                ? generateUniqueInvoiceNo("AUTO")
+                : ((baseInvoiceNo == null || baseInvoiceNo.trim().isEmpty()) ? generateUniqueInvoiceNo("AUTO") : baseInvoiceNo.trim());
+        
+        // Dates: use provided values as-is to trigger date validations
+        String providedInvoiceDate = invoiceData.get("invoiceDate");
+        String providedDueDate = invoiceData.get("dueDate");
+        String providedAdditionalDueDate = invoiceData.get("additionalDueDate");
+        String today = getCurrentDate();
+        String futureDate = getFutureDate(45);
+        String invoiceDateToUse = (providedInvoiceDate != null && !providedInvoiceDate.trim().isEmpty()) ? providedInvoiceDate.trim() : today;
+        String dueDateToUse = (providedDueDate != null && !providedDueDate.trim().isEmpty()) ? providedDueDate.trim() : futureDate;
+        String additionalDueDateToUse = (providedAdditionalDueDate != null && !providedAdditionalDueDate.trim().isEmpty()) ? providedAdditionalDueDate.trim() : dueDateToUse;
+        
+        // Hash & taxExclusive: honor provided columns exactly; don't auto-generate if column exists
+        String hashCodeToUse = "";
+        int taxExclusiveAmountToUse = 0;
+        boolean hashProvidedColumn = invoiceData.containsKey("hashCode");
+        boolean taxExclusiveProvidedColumn = invoiceData.containsKey("taxExclusiveAmount");
+        
+        if ("E_FATURA".equalsIgnoreCase(invoiceType)) {
+            if (hashProvidedColumn) {
+                hashCodeToUse = providedHashCode == null ? "" : providedHashCode; // allow empty to trigger INVALID_HASH_CODE
+            } else {
+                hashCodeToUse = generateHashCode();
+            }
+            taxExclusiveAmountToUse = 0;
+        } else if ("E_ARSIV".equalsIgnoreCase(invoiceType) || "E_ARŞIV".equalsIgnoreCase(invoiceType)) {
+            hashCodeToUse = ""; // Not required for E-Arşiv
+            if (taxExclusiveProvidedColumn) {
+                if (taxExclusiveAmountStr != null && !taxExclusiveAmountStr.trim().isEmpty()) {
+                    taxExclusiveAmountToUse = Integer.parseInt(taxExclusiveAmountStr.trim());
+                } else {
+                    taxExclusiveAmountToUse = 0; // explicit zero to trigger INVALID_TAX_EXCLUSIVE_AMOUNT
+                }
+            } else {
+                taxExclusiveAmountToUse = (int) Math.round(invoiceAmount * 0.85);
+            }
+        }
+        
+        lastInvoiceNo = uniqueInvoiceNo;
+        lastSupplierTaxNo = supplierTaxNo;
+        
+        // Build request preserving provided fields
+        lastInvoiceRequest = UploadInvoiceRequest.builder()
+                .userEmail(faturalabAPI.getEnvironment().getUserEmail())
+                .supplierTaxNo(supplierTaxNo)
+                .invoiceAmount(invoiceAmount)
+                .remainingAmount(invoiceAmount)
+                .currencyType(currencyType)
+                .invoiceDate(invoiceDateToUse)
+                .dueDate(dueDateToUse)
+                .additionalDueDate(additionalDueDateToUse)
+                .invoiceNo(uniqueInvoiceNo)
+                .invoiceType(invoiceType)
+                .hashCode(hashCodeToUse)
+                .taxExclusiveAmount(taxExclusiveAmountToUse)
+                .build();
+        
+        log.info("Uploading invoice (generic step): {} with amount: {}, type: {}", uniqueInvoiceNo, invoiceAmount, invoiceType);
+        lastResponse = faturalabAPI.uploadInvoice(lastInvoiceRequest);
+    }
+    
+    @When("^aynı fatura tekrar yüklenirse$")
+    public void ayni_fatura_tekrar_yuklenirse() {
+        Assert.assertNotNull(lastInvoiceRequest, "Previous invoice request must exist to retry upload");
+        log.info("Re-uploading the same invoice to trigger duplicate validation: {}", lastInvoiceNo);
+        lastResponse = faturalabAPI.uploadInvoice(lastInvoiceRequest);
+    }
+    
+    @Then("^hata kodu '([^']*)' olmalı$")
+    public void hata_kodu_olmali(String expectedErrorCode) {
+        Assert.assertNotNull(lastResponse, "Response should not be null");
+        String body = lastResponse.getBody().asString();
+        try {
+            // Prefer JsonPath; fallback to tree parsing
+            String actualCode = null;
+            try {
+                io.restassured.path.json.JsonPath jp = io.restassured.path.json.JsonPath.from(body);
+                actualCode = jp.getString("error.errorCode");
+                if (actualCode == null) actualCode = jp.getString("errorCode");
+                if (actualCode == null) actualCode = jp.getString("result.errorCode");
+            } catch (Exception ignore) {}
+            if (actualCode == null) {
+                ObjectMapper mapper = new ObjectMapper();
+                com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(body);
+                if (root.hasNonNull("errorCode")) {
+                    actualCode = root.get("errorCode").asText();
+                } else if (root.has("error") && root.get("error").hasNonNull("errorCode")) {
+                    actualCode = root.get("error").get("errorCode").asText();
+                } else if (root.has("result") && root.get("result").hasNonNull("errorCode")) {
+                    actualCode = root.get("result").get("errorCode").asText();
+                }
+            }
+            log.info("Asserting errorCode. expected='{}', actual='{}' | body={}", expectedErrorCode, actualCode, body);
+            Assert.assertEquals(actualCode, expectedErrorCode, "Unexpected errorCode");
+        } catch (Exception e) {
+            log.error("Failed to parse response for errorCode. Body: {}", body, e);
+            Assert.fail("Could not parse response to assert errorCode");
+        }
+    }
+    
+    @And("^hata mesajı '([^']*)' içermeli$")
+    public void hata_mesaji_icermeli(String expectedMessagePart) {
+        Assert.assertNotNull(lastResponse, "Response should not be null");
+        String body = lastResponse.getBody().asString();
+        try {
+            String actualMessage = null;
+            try {
+                io.restassured.path.json.JsonPath jp = io.restassured.path.json.JsonPath.from(body);
+                actualMessage = jp.getString("error.errorDescription");
+                if (actualMessage == null) actualMessage = jp.getString("error.message");
+                if (actualMessage == null) actualMessage = jp.getString("errorMessage");
+                if (actualMessage == null) actualMessage = jp.getString("result.message");
+            } catch (Exception ignore) {}
+            if (actualMessage == null) {
+                ObjectMapper mapper = new ObjectMapper();
+                com.fasterxml.jackson.databind.JsonNode root = mapper.readTree(body);
+                if (root.hasNonNull("errorMessage")) {
+                    actualMessage = root.get("errorMessage").asText();
+                } else if (root.has("error")) {
+                    com.fasterxml.jackson.databind.JsonNode errorNode = root.get("error");
+                    if (errorNode.hasNonNull("errorDescription")) {
+                        actualMessage = errorNode.get("errorDescription").asText();
+                    } else if (errorNode.hasNonNull("message")) {
+                        actualMessage = errorNode.get("message").asText();
+                    }
+                } else if (root.has("result") && root.get("result").hasNonNull("message")) {
+                    actualMessage = root.get("result").get("message").asText();
+                }
+            }
+            log.info("Asserting errorMessage contains. expectedPart='{}', actual='{}' | body={}", expectedMessagePart, actualMessage, body);
+            Assert.assertTrue(actualMessage != null && actualMessage.contains(expectedMessagePart),
+                    "Error message should contain expected text");
+        } catch (Exception e) {
+            log.error("Failed to parse response for errorMessage. Body: {}", body, e);
+            Assert.fail("Could not parse response to assert errorMessage");
+        }
+    }
+    
+    // Alias to support Ozaman("hata mesajı {string} içermeli") pattern without single quotes
+    @Then("^hata mesajı \"([^\"]*)\" içermeli$")
+    public void hata_mesaji_cift_tirnak_icermeli(String expectedMessagePart) {
+        hata_mesaji_icermeli(expectedMessagePart);
+    }
+    
     // Utility methods
     private String getCurrentDate() {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
@@ -623,8 +815,20 @@ public class InvoiceManagementStepDefs {
     }
     
     private String generateUniqueInvoiceNo(String baseInvoiceNo) {
-        // Get environment prefix from environment name
-        String envName = faturalabAPI.getEnvironment().getAlias();
+        // Get environment prefix from environment name (null-safe)
+        String envName;
+        if (faturalabAPI == null || faturalabAPI.getEnvironment() == null) {
+            FaturalabAPI shared = CucumberHooks.getSharedAPI();
+            if (shared != null) {
+                this.faturalabAPI = shared;
+            }
+        }
+        if (faturalabAPI == null || faturalabAPI.getEnvironment() == null) {
+            String envProp = System.getProperty("test.env", System.getProperty("faturalab.env", "ALBC"));
+            envName = envProp;
+        } else {
+            envName = faturalabAPI.getEnvironment().getAlias();
+        }
         
         // Handle different environment name patterns
         String envPrefix;

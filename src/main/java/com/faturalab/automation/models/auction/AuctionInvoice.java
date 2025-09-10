@@ -1,6 +1,7 @@
 package com.faturalab.automation.models.auction;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 
 public class AuctionInvoice {
     
@@ -14,12 +15,15 @@ public class AuctionInvoice {
     private Integer extraInvoiceDueDay;
     
     @JsonProperty("taxExclusiveAmount")
+    @JsonSerialize(using = AmountSerializer.class)
     private Double taxExclusiveAmount;
     
     @JsonProperty("invoiceAmount")
+    @JsonSerialize(using = AmountSerializer.class)
     private Double invoiceAmount;
     
     @JsonProperty("requestedAmount") 
+    @JsonSerialize(using = AmountSerializer.class)
     private Double requestedAmount;
     
     @JsonProperty("invoiceDate")
@@ -82,123 +86,42 @@ public class AuctionInvoice {
     }
     
     // Getters and Setters
-    public String getCurrencyType() {
-        return currencyType;
-    }
-    
-    public void setCurrencyType(String currencyType) {
-        this.currencyType = currencyType;
-    }
-    
-    public String getDueDate() {
-        return dueDate;
-    }
-    
-    public void setDueDate(String dueDate) {
-        this.dueDate = dueDate;
-    }
-    
-    public Integer getExtraInvoiceDueDay() {
-        return extraInvoiceDueDay;
-    }
-    
-    public void setExtraInvoiceDueDay(Integer extraInvoiceDueDay) {
-        this.extraInvoiceDueDay = extraInvoiceDueDay;
-    }
-    
-    public Double getTaxExclusiveAmount() {
-        return taxExclusiveAmount;
-    }
-    
-    public void setTaxExclusiveAmount(Double taxExclusiveAmount) {
-        this.taxExclusiveAmount = taxExclusiveAmount;
-    }
-    
-    public Double getInvoiceAmount() {
-        return invoiceAmount;
-    }
-    
-    public void setInvoiceAmount(Double invoiceAmount) {
-        this.invoiceAmount = invoiceAmount;
-    }
-    
-    public Double getRequestedAmount() {
-        return requestedAmount;
-    }
-    
-    public void setRequestedAmount(Double requestedAmount) {
-        this.requestedAmount = requestedAmount;
-    }
-    
-    public String getInvoiceDate() {
-        return invoiceDate;
-    }
-    
-    public void setInvoiceDate(String invoiceDate) {
-        this.invoiceDate = invoiceDate;
-    }
-    
-    public String getInvoiceType() {
-        return invoiceType;
-    }
-    
-    public void setInvoiceType(String invoiceType) {
-        this.invoiceType = invoiceType;
-    }
-    
-    public String getInvoiceETTN() {
-        return invoiceETTN;
-    }
-    
-    public void setInvoiceETTN(String invoiceETTN) {
-        this.invoiceETTN = invoiceETTN;
-    }
-    
-    public String getInvoiceTypeCode() {
-        return invoiceTypeCode;
-    }
-    
-    public void setInvoiceTypeCode(String invoiceTypeCode) {
-        this.invoiceTypeCode = invoiceTypeCode;
-    }
-    
-    public String getPackageNo() {
-        return packageNo;
-    }
-    
-    public void setPackageNo(String packageNo) {
-        this.packageNo = packageNo;
-    }
-    
-    public String getOrderNo() {
-        return orderNo;
-    }
-    
-    public void setOrderNo(String orderNo) {
-        this.orderNo = orderNo;
-    }
-    
-    public String getItemNo() {
-        return itemNo;
-    }
-    
-    public void setItemNo(String itemNo) {
-        this.itemNo = itemNo;
-    }
-    
-    public String getSupplierTaxNo() {
-        return supplierTaxNo;
-    }
-    
-    public void setSupplierTaxNo(String supplierTaxNo) {
-        this.supplierTaxNo = supplierTaxNo;
-    }
-    
-    public String getInvoiceNo() {
-        return invoiceNo;
-    }
-    
-    public void setInvoiceNo(String invoiceNo) {
-        this.invoiceNo = invoiceNo;
-    }
+    public String getCurrencyType() { return currencyType; }
+    public void setCurrencyType(String currencyType) { this.currencyType = currencyType; }
+    public String getDueDate() { return dueDate; }
+    public void setDueDate(String dueDate) { this.dueDate = dueDate; }
+    public Integer getExtraInvoiceDueDay() { return extraInvoiceDueDay; }
+    public void setExtraInvoiceDueDay(Integer extraInvoiceDueDay) { this.extraInvoiceDueDay = extraInvoiceDueDay; }
+    @JsonSerialize(using = AmountSerializer.class)
+    public Double getTaxExclusiveAmount() { return taxExclusiveAmount; }
+    public void setTaxExclusiveAmount(Double taxExclusiveAmount) { this.taxExclusiveAmount = taxExclusiveAmount; }
+    @JsonSerialize(using = AmountSerializer.class)
+    public Double getInvoiceAmount() { return invoiceAmount; }
+    public void setInvoiceAmount(Double invoiceAmount) { this.invoiceAmount = invoiceAmount; }
+    @JsonSerialize(using = AmountSerializer.class)
+    public Double getRequestedAmount() { return requestedAmount; }
+    public void setRequestedAmount(Double requestedAmount) { this.requestedAmount = requestedAmount; }
+    public String getInvoiceDate() { return invoiceDate; }
+    public void setInvoiceDate(String invoiceDate) { this.invoiceDate = invoiceDate; }
+    public String getInvoiceType() { return invoiceType; }
+    public void setInvoiceType(String invoiceType) { this.invoiceType = invoiceType; }
+    public String getInvoiceETTN() { return invoiceETTN; }
+    public void setInvoiceETTN(String invoiceETTN) { this.invoiceETTN = invoiceETTN; }
+    public String getInvoiceTypeCode() { return invoiceTypeCode; }
+    public void setInvoiceTypeCode(String invoiceTypeCode) { this.invoiceTypeCode = invoiceTypeCode; }
+    public String getPackageNo() { return packageNo; }
+    public void setPackageNo(String packageNo) { this.packageNo = packageNo; }
+    public String getOrderNo() { return orderNo; }
+    public void setOrderNo(String orderNo) { this.orderNo = orderNo; }
+    public String getItemNo() { return itemNo; }
+    public void setItemNo(String itemNo) { this.itemNo = itemNo; }
+    public String getSupplierTaxNo() { return supplierTaxNo; }
+    public void setSupplierTaxNo(String supplierTaxNo) { this.supplierTaxNo = supplierTaxNo; }
+    public String getInvoiceNo() { return invoiceNo; }
+    public void setInvoiceNo(String invoiceNo) { this.invoiceNo = invoiceNo; }
+
+    // ==== int-overload setters for stricter integer inputs (keeps JSON integers with serializer) ====
+    public void setTaxExclusiveAmount(int taxExclusiveAmount) { this.taxExclusiveAmount = (double) taxExclusiveAmount; }
+    public void setInvoiceAmount(int invoiceAmount) { this.invoiceAmount = (double) invoiceAmount; }
+    public void setRequestedAmount(int requestedAmount) { this.requestedAmount = (double) requestedAmount; }
 } 
