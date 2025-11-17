@@ -18,6 +18,8 @@ import java.util.List;
 
 import com.faturalab.automation.stepdefinitions.HomePageSteps;
 import com.faturalab.automation.stepdefinitions.Hooks;
+import com.faturalab.automation.stepdefinitions.LoginPageElementsSteps;
+import com.faturalab.automation.stepdefinitions.TedarikciYonetimiSteps;
 // Force include invoice and auction stepdefs
 import com.faturalab.automation.stepdefinitions.invoice.InvoiceManagementStepDefs;
 import com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStepDefs;
@@ -48,6 +50,8 @@ public class TestRunner extends AbstractTestNGCucumberTests {
             System.out.println("Trying to force load step definition classes...");
             Class.forName("com.faturalab.automation.stepdefinitions.HomePageSteps");
             Class.forName("com.faturalab.automation.stepdefinitions.Hooks");
+            Class.forName("com.faturalab.automation.stepdefinitions.LoginPageElementsSteps");
+            Class.forName("com.faturalab.automation.stepdefinitions.TedarikciYonetimiSteps");
             Class.forName("com.faturalab.automation.stepdefinitions.invoice.InvoiceManagementStepDefs");
             Class.forName("com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStepDefs");
             System.out.println("Step definition classes loaded successfully.");
@@ -67,6 +71,12 @@ public class TestRunner extends AbstractTestNGCucumberTests {
             
             System.out.println("Loading Hooks class...");
             new Hooks();
+            
+            System.out.println("Loading LoginPageElementsSteps class...");
+            new LoginPageElementsSteps();
+            
+            System.out.println("Loading TedarikciYonetimiSteps class...");
+            new TedarikciYonetimiSteps();
             
             System.out.println("Loading InvoiceManagementStepDefs class...");
             new InvoiceManagementStepDefs();

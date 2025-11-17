@@ -14,7 +14,7 @@ public class HomePage extends BasePageObject {
     private final By EMAIL_INPUT = By.cssSelector("input[type='text'].v-login-textfield-component");
     
     // Password Input - Vaadin passwordfield with specific classes
-    private final By PASSWORD_INPUT = By.cssSelector("input[type='password'].v-login-textfield-component.passwordfield");
+    private final By PASSWORD_INPUT = By.cssSelector("input[type='password'].v-login-textfield-component");
     
     // Remember Me Checkbox
     private final By REMEMBER_ME_CHECKBOX = By.cssSelector("input[type='checkbox']");
@@ -51,9 +51,16 @@ public class HomePage extends BasePageObject {
     private final String LOGO_XPATH = "/html/body/div/div[1]/div/div[1]";
     private final By LOGO_BY_IMAGE = By.cssSelector("img[alt*='Faturalab'], img[alt*='faturalab'], img[src*='logo']");
     private final By LOGO_BY_CLASS = By.cssSelector(".logo, .brand, .header-logo, [class*='logo']");
+    private final By LOGO_BUTTON = By.cssSelector(".v-button.login_logo");
     
     @FindBy(xpath = "/html/body/div/div[1]/div/div[1]")
     private WebElement logoElement;
+    
+    // Language Toggle Button - EN/TR
+    private final By LANGUAGE_BUTTON = By.cssSelector(".v-button.language-button");
+    
+    // Live Chat Icon (Desk360)
+    private final By LIVE_CHAT_IFRAME = By.id("desk360-chat-iframe");
     
     // ==================== CONSTRUCTOR ====================
     
@@ -339,5 +346,118 @@ public class HomePage extends BasePageObject {
         handleRecaptcha();
         
         log.info("Login attempt completed with email: {}", email);
+    }
+    
+    // ==================== LOGIN PAGE ELEMENT VALIDATION ====================
+    
+    /**
+     * Checks if email input field is displayed on the login page
+     * @return true if email input is visible
+     */
+    public boolean isEmailInputDisplayed() {
+        try {
+            WebElement emailInput = waitForVisibility(EMAIL_INPUT, 5);
+            boolean isDisplayed = emailInput.isDisplayed();
+            log.info("Email input field displayed: {}", isDisplayed);
+            return isDisplayed;
+        } catch (Exception e) {
+            log.error("Email input field not found: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Checks if password input field is displayed on the login page
+     * @return true if password input is visible
+     */
+    public boolean isPasswordInputDisplayed() {
+        try {
+            WebElement passwordInput = waitForVisibility(PASSWORD_INPUT, 5);
+            boolean isDisplayed = passwordInput.isDisplayed();
+            log.info("Password input field displayed: {}", isDisplayed);
+            return isDisplayed;
+        } catch (Exception e) {
+            log.error("Password input field not found: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Checks if live chat icon/iframe is displayed on the login page
+     * @return true if live chat is visible
+     */
+    public boolean isLiveChatDisplayed() {
+        try {
+            WebElement liveChatIframe = waitForVisibility(LIVE_CHAT_IFRAME, 5);
+            boolean isDisplayed = liveChatIframe.isDisplayed();
+            log.info("Live chat iframe displayed: {}", isDisplayed);
+            return isDisplayed;
+        } catch (Exception e) {
+            log.error("Live chat iframe not found: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Checks if language toggle button is displayed on the login page
+     * @return true if language button is visible
+     */
+    public boolean isLanguageButtonDisplayed() {
+        try {
+            WebElement languageBtn = waitForVisibility(LANGUAGE_BUTTON, 5);
+            boolean isDisplayed = languageBtn.isDisplayed();
+            log.info("Language button displayed: {}", isDisplayed);
+            return isDisplayed;
+        } catch (Exception e) {
+            log.error("Language button not found: {}", e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Gets the current language text from the language button (EN or TR)
+     * @return Current language code displayed on the button
+     */
+    public String getLanguageButtonText() {
+        try {
+            WebElement languageBtn = waitForVisibility(LANGUAGE_BUTTON, 5);
+            String languageText = languageBtn.getText().trim();
+            log.info("Language button text: {}", languageText);
+            return languageText;
+        } catch (Exception e) {
+            log.error("Could not get language button text: {}", e.getMessage());
+            return "";
+        }
+    }
+    
+    /**
+     * Clicks the language toggle button to switch between EN and TR
+     */
+    public void clickLanguageButton() {
+        try {
+            WebElement languageBtn = waitForElementToBeClickable(LANGUAGE_BUTTON);
+            languageBtn.click();
+            log.info("Clicked language toggle button");
+            // Wait a bit for the page to update
+            waitForPageLoad();
+        } catch (Exception e) {
+            log.error("Could not click language button: {}", e.getMessage());
+        }
+    }
+    
+    /**
+     * Verifies that the logo is displayed using the most reliable locator
+     * @return true if logo button is visible
+     */
+    public boolean isLogoButtonDisplayed() {
+        try {
+            WebElement logoBtn = waitForVisibility(LOGO_BUTTON, 5);
+            boolean isDisplayed = logoBtn.isDisplayed();
+            log.info("Logo button displayed: {}", isDisplayed);
+            return isDisplayed;
+        } catch (Exception e) {
+            log.error("Logo button not found: {}", e.getMessage());
+            return false;
+        }
     }
 } 
