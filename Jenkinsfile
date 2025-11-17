@@ -27,8 +27,8 @@ pipeline {
         
         stage('Test') {
             steps {
-                echo '🧪 Running tests...'
-                bat 'mvn test -Dcucumber.filter.tags="@UI"'
+                echo '🧪 Running all tests...'
+                bat 'mvn clean test'
             }
         }
         
