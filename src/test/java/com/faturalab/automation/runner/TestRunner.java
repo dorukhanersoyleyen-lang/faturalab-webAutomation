@@ -17,7 +17,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.faturalab.automation.stepdefinitions.HomePageSteps;
-import com.faturalab.automation.stepdefinitions.FaturalabAcademySteps;
 import com.faturalab.automation.stepdefinitions.Hooks;
 // Force include invoice and auction stepdefs
 import com.faturalab.automation.stepdefinitions.invoice.InvoiceManagementStepDefs;
@@ -48,7 +47,6 @@ public class TestRunner extends AbstractTestNGCucumberTests {
         try {
             System.out.println("Trying to force load step definition classes...");
             Class.forName("com.faturalab.automation.stepdefinitions.HomePageSteps");
-            Class.forName("com.faturalab.automation.stepdefinitions.FaturalabAcademySteps");
             Class.forName("com.faturalab.automation.stepdefinitions.Hooks");
             Class.forName("com.faturalab.automation.stepdefinitions.invoice.InvoiceManagementStepDefs");
             Class.forName("com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStepDefs");
@@ -66,9 +64,6 @@ public class TestRunner extends AbstractTestNGCucumberTests {
         try {
             System.out.println("Loading HomePageSteps class...");
             new HomePageSteps();
-            
-            System.out.println("Loading FaturalabAcademySteps class...");
-            new FaturalabAcademySteps();
             
             System.out.println("Loading Hooks class...");
             new Hooks();

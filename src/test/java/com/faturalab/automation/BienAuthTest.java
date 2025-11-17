@@ -1,6 +1,7 @@
 package com.faturalab.automation;
 
 import com.faturalab.automation.api.FaturalabAPI;
+import com.faturalab.automation.config.EnvironmentManager;
 import io.restassured.response.Response;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -15,7 +16,8 @@ public class BienAuthTest {
         
         try {
             // BIEN Environment ile API instance oluştur
-            FaturalabAPI faturalabAPI = new FaturalabAPI("dev.faturalab.bank.bien");
+            EnvironmentManager.EnvironmentConfig environmentConfig = EnvironmentManager.loadEnvironment("dev.faturalab.bank.bien");
+            FaturalabAPI faturalabAPI = new FaturalabAPI(environmentConfig);
             
             System.out.println("✅ Environment yüklendi: " + faturalabAPI.getEnvironment().getAlias());
             System.out.println("🌐 Host: " + faturalabAPI.getEnvironment().getHost());

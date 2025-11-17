@@ -183,7 +183,7 @@ mvn allure:serve
 `src/test/resources/config/dev.properties` dosyasını düzenleyin:
 ```properties
 # Uygulama URL'leri
-base.url=https://www.faturalab.com
+base.url=https://dev.faturalab.com/app
 
 # Zaman aşımı ayarları (saniye)
 explicit.wait=10

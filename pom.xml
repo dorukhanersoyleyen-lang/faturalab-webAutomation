@@ -222,14 +222,22 @@
             <suiteXmlFile>testng.xml</suiteXmlFile>
           </suiteXmlFiles>
           <systemPropertyVariables>
-                            <cucumber.glue>com.faturalab.automation.stepdefinitions</cucumber.glue>
+            <cucumber.glue>com.faturalab.automation.stepdefinitions</cucumber.glue>
             <cucumber.plugin>pretty,html:target/cucumber-reports/cucumber-pretty.html,json:target/cucumber-reports/CucumberTestReport.json,io.qameta.allure.cucumber7jvm.AllureCucumber7Jvm</cucumber.plugin>
+            <cucumber.filter.tags>${cucumber.filter.tags}</cucumber.filter.tags>
           </systemPropertyVariables>
           <testFailureIgnore>false</testFailureIgnore>
           <includes>
             <include>**/*Runner.java</include>
           </includes>
         </configuration>
+        <dependencies>
+          <dependency>
+            <groupId>org.apache.maven.surefire</groupId>
+            <artifactId>surefire-testng</artifactId>
+            <version>3.3.0</version>
+          </dependency>
+        </dependencies>
       </plugin>
       <plugin>
         <groupId>net.masterthought</groupId>

@@ -3,6 +3,7 @@ package com.faturalab.automation.pages;
 import com.faturalab.automation.utils.WaitHelper;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
@@ -64,5 +65,40 @@ public abstract class BasePageObject {
     
     protected void waitForPageLoad() {
         waitHelper.waitForPageLoad();
+    }
+    
+    /**
+     * Finds an element using By locator
+     * @param locator By locator
+     * @return WebElement
+     */
+    protected WebElement findElement(By locator) {
+        WebElement element = driver.findElement(locator);
+        log.debug("Found element using locator: {}", locator);
+        return element;
+    }
+    
+    /**
+     * Waits for element to be clickable
+     * @param locator By locator
+     * @return WebElement that is clickable
+     */
+    protected WebElement waitForElementToBeClickable(By locator) {
+        WebElement element = wait.until(ExpectedConditions.elementToBeClickable(locator));
+        log.debug("Element is clickable: {}", locator);
+        return element;
+    }
+    
+    /**
+     * Waits for element visibility with custom timeout
+     * @param locator By locator
+     * @param timeoutInSeconds Custom timeout in seconds
+     * @return WebElement that is visible
+     */
+    protected WebElement waitForVisibility(By locator, int timeoutInSeconds) {
+        WebDriverWait customWait = new WebDriverWait(driver, Duration.ofSeconds(timeoutInSeconds));
+        WebElement element = customWait.until(ExpectedConditions.visibilityOfElementLocated(locator));
+        log.debug("Element is visible: {}", locator);
+        return element;
     }
 } 

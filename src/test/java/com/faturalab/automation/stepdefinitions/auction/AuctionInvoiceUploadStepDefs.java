@@ -375,6 +375,9 @@ public class AuctionInvoiceUploadStepDefs {
     // Negative case step definitions
     @When("^boş parametrelerle auction fatura yüklenmeye çalışılırsa$")
     public void bos_parametrelerle_auction_fatura_yuklenmeye_calisirilirsa() {
+        // Ensure API is initialized
+        ensureAPIInitialized();
+        
         log.info("Attempting to upload auction with empty parameters");
         
         // Create empty auction request using TestDataGenerator
@@ -392,6 +395,9 @@ public class AuctionInvoiceUploadStepDefs {
     
     @When("^geçersiz auction tip ile fatura yüklerse$")
     public void gecersiz_auction_tip_ile_fatura_yuklerse(DataTable dataTable) {
+        // Ensure API is initialized
+        ensureAPIInitialized();
+        
         List<Map<String, String>> invoiceData = dataTable.asMaps(String.class, String.class);
         log.info("Creating auction upload request with invalid auction type");
         
