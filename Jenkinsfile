@@ -21,14 +21,27 @@ pipeline {
         stage('Build') {
             steps {
                 echo '🔨 Building the project...'
-                bat 'mvn clean compile'
+                script {
+                    if (isUnix()) {
+                        sh 'mvn clean compile'
+                    } else {
+                        bat 'mvn clean compile'
+                    }
+                }
             }
         }
         
         stage('Test') {
             steps {
                 echo '🧪 Running all tests...'
-                bat 'mvn clean test'
+                script {
+                    if (isUnix()) {
+                        // Headless mode for Linux server
+                        sh 'export DISPLAY=:99 && Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 & mvn clean test -Dheadless=true'
+                    } else {
+                        bat 'mvn clean test'
+                    }
+                }
             }
         }
         
