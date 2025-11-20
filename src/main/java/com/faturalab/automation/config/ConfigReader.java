@@ -40,7 +40,14 @@ public class ConfigReader {
     }
     
     public static String getProperty(String key) {
-        String value = properties.getProperty(key);
+        // First check system properties (e.g. command line arguments -Dkey=value)
+        String value = System.getProperty(key);
+        if (value != null) {
+            return value;
+        }
+        
+        // Then check loaded properties file
+        value = properties.getProperty(key);
         if (value == null) {
             log.warn("Property '{}' not found in configuration", key);
         }
@@ -48,7 +55,14 @@ public class ConfigReader {
     }
     
     public static String getProperty(String key, String defaultValue) {
-        String value = properties.getProperty(key);
+        // First check system properties
+        String value = System.getProperty(key);
+        if (value != null) {
+            return value;
+        }
+
+        // Then check loaded properties file
+        value = properties.getProperty(key);
         if (value == null) {
             log.warn("Property '{}' not found in configuration, using default: {}", key, defaultValue);
             return defaultValue;

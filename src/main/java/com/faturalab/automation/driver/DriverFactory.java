@@ -55,6 +55,13 @@ public class DriverFactory {
         options.addArguments("--disable-notifications");
         options.addArguments("--remote-allow-origins=*");
         
+        // Server/CI environment stability options
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--disable-gpu");
+        options.addArguments("--window-size=1920,1080");
+        options.addArguments("--ignore-certificate-errors");
+        
         log.info("Chrome WebDriver initialized with options: {}", options);
         return new ChromeDriver(options);
     }
