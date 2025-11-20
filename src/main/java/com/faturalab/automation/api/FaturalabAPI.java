@@ -39,6 +39,9 @@ public class FaturalabAPI {
         // Configure RestAssured
         RestAssured.baseURI = environment.getHost();
         RestAssured.basePath = "/app/api/integration/buyer/v0";
+        // Ignore SSL certificate errors for server environment
+        RestAssured.useRelaxedHTTPSValidation();
+        
         RestAssured.config = RestAssured.config()
                 .encoderConfig(RestAssured.config().getEncoderConfig().defaultContentCharset("UTF-8"));
         
