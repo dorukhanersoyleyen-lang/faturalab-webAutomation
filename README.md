@@ -92,3 +92,4 @@ Tüm testler **ALBC environment** üzerinde çalışır ve **gerçek API endpoin
 Bu proje Jenkins üzerinde otomatik olarak çalıştırılmaktadır.
 - **Poll SCM:** Her 2 dakikada bir değişiklik kontrolü
 - **Environment:** Linux Server (Headless Chrome)
+- **Notification:** Teams & Email

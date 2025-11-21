@@ -8,6 +8,9 @@ pipeline {
     
     environment {
         MAVEN_OPTS = '-Dmaven.test.failure.ignore=true'
+        // Teams Webhook URL from Jenkins Credentials
+        // ID must be 'teams-webhook-url' in Jenkins Credentials
+        TEAMS_WEBHOOK = credentials('teams-webhook-url')
     }
     
     stages {
@@ -70,10 +73,33 @@ pipeline {
         }
         success {
             echo '✅ Pipeline completed successfully!'
+            script {
+                try {
+                    office365ConnectorSend (
+                        webhookUrl: "${TEAMS_WEBHOOK}",
+                        message: "✅ Test Başarılı: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        status: 'Success',
+                        color: '00ff00'
+                    )
+                } catch (Exception e) {
+                    echo "⚠️ Teams notification failed: ${e.getMessage()}"
+                }
+            }
         }
         failure {
             echo '❌ Pipeline failed!'
+            script {
+                try {
+                    office365ConnectorSend (
+                        webhookUrl: "${TEAMS_WEBHOOK}",
+                        message: "❌ Test Başarısız: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                        status: 'Failure',
+                        color: 'ff0000'
+                    )
+                } catch (Exception e) {
+                    echo "⚠️ Teams notification failed: ${e.getMessage()}"
+                }
+            }
         }
     }
 }
-
