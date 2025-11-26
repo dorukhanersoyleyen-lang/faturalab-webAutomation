@@ -2,6 +2,12 @@
 
 Bu proje ALBC firması için Faturalab API'larının otomatik test edilmesi amacıyla geliştirilmiştir.
 
+## 🛠️ Ön Gereksinimler (Prerequisites)
+* **Java JDK 11** veya üzeri
+* **Maven 3.6** veya üzeri
+* **IDE** (IntelliJ IDEA önerilir)
+* **Lombok** plugin (IDE için)
+
 ## 📋 Test Kategorileri
 * **@smoke** - Temel fatura upload/delete testleri
 * **@negative** - Boş parametreler ve hata senaryoları
