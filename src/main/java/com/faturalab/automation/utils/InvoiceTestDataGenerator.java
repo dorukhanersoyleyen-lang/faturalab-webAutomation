@@ -231,26 +231,26 @@ public class InvoiceTestDataGenerator {
         return 1000 + random.nextInt(9000); // 1000-9999
     }
     
-    private static String getFutureDate(int days) {
+    public static String getFutureDate(int days) {
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DAY_OF_MONTH, days);
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         return sdf.format(cal.getTime());
     }
     
-    private static String getPastDate(int days) {
+    public static String getPastDate(int days) {
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DAY_OF_MONTH, -days);
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         return sdf.format(cal.getTime());
     }
     
-    private static String getCurrentDate() {
+    public static String getCurrentDate() {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         return sdf.format(new Date());
     }
     
-    private static String getFutureWorkingDate(int days) {
+    public static String getFutureWorkingDate(int days) {
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DAY_OF_MONTH, days);
         

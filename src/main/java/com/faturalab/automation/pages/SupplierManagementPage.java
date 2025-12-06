@@ -28,22 +28,22 @@ public class SupplierManagementPage extends BasePageObject {
     // ==================== ACTION BUTTON LOCATORS ====================
     
     // Yeni Tedarikçi Ekle butonu
-    private final By ADD_NEW_SUPPLIER_BUTTON = By.cssSelector(".v-button:contains('Yeni'), .v-button:contains('Ekle')");
+    private final By ADD_NEW_SUPPLIER_BUTTON = By.xpath("//div[contains(@class, 'v-button') and (.//span[contains(text(), 'Yeni')] or .//span[contains(text(), 'Ekle')])] | //div[contains(@class, 'v-button') and (contains(text(), 'Yeni') or contains(text(), 'Ekle'))]");
     
     // Alternatif Yeni Tedarikçi Ekle butonu
-    private final By ADD_NEW_SUPPLIER_BUTTON_ALT = By.xpath("//div[contains(@class, 'v-button') and (contains(text(), 'Yeni') or contains(text(), 'Ekle'))]");
+    private final By ADD_NEW_SUPPLIER_BUTTON_ALT = By.xpath("//div[contains(@class, 'v-button')][.//span[contains(text(), 'Yeni') or contains(text(), 'Ekle')]]");
     
     // Kaydet butonu
-    private final By SAVE_BUTTON = By.cssSelector(".v-button:contains('Kaydet')");
+    private final By SAVE_BUTTON = By.xpath("//div[contains(@class, 'v-button')][.//span[contains(text(), 'Kaydet')]]");
     
     // İptal butonu
-    private final By CANCEL_BUTTON = By.cssSelector(".v-button:contains('İptal')");
+    private final By CANCEL_BUTTON = By.xpath("//div[contains(@class, 'v-button')][.//span[contains(text(), 'İptal')]]");
     
     // Düzenle butonu
-    private final By EDIT_BUTTON = By.cssSelector(".v-button:contains('Düzenle')");
+    private final By EDIT_BUTTON = By.xpath("//div[contains(@class, 'v-button')][.//span[contains(text(), 'Düzenle')]]");
     
     // Sil butonu
-    private final By DELETE_BUTTON = By.cssSelector(".v-button:contains('Sil')");
+    private final By DELETE_BUTTON = By.xpath("//div[contains(@class, 'v-button')][.//span[contains(text(), 'Sil')]]");
     
     // ==================== FORM FIELD LOCATORS ====================
     
@@ -74,10 +74,10 @@ public class SupplierManagementPage extends BasePageObject {
     private final By SEARCH_INPUT = By.cssSelector("input[placeholder*='Ara'], input[class*='search']");
     
     // Arama butonu
-    private final By SEARCH_BUTTON = By.cssSelector(".v-button:contains('Ara')");
+    private final By SEARCH_BUTTON = By.xpath("//div[contains(@class, 'v-button')][.//span[contains(text(), 'Ara')]]");
     
     // Filtre temizle butonu
-    private final By CLEAR_FILTER_BUTTON = By.cssSelector(".v-button:contains('Temizle')");
+    private final By CLEAR_FILTER_BUTTON = By.xpath("//div[contains(@class, 'v-button')][.//span[contains(text(), 'Temizle')]]");
     
     // ==================== TABLE & LIST LOCATORS ====================
     
@@ -118,10 +118,10 @@ public class SupplierManagementPage extends BasePageObject {
     private final By CONFIRMATION_DIALOG = By.cssSelector(".v-window");
     
     // Onay butonu
-    private final By CONFIRM_BUTTON = By.cssSelector(".v-window .v-button:contains('Evet'), .v-window .v-button:contains('Onayla')");
+    private final By CONFIRM_BUTTON = By.xpath("//div[contains(@class, 'v-window')]//div[contains(@class, 'v-button')][.//span[contains(text(), 'Evet') or contains(text(), 'Onayla')]]");
     
     // Reddet butonu
-    private final By REJECT_BUTTON = By.cssSelector(".v-window .v-button:contains('Hayır'), .v-window .v-button:contains('İptal')");
+    private final By REJECT_BUTTON = By.xpath("//div[contains(@class, 'v-window')]//div[contains(@class, 'v-button')][.//span[contains(text(), 'Hayır') or contains(text(), 'İptal')]]");
     
     // ==================== FINDBY ELEMENTS ====================
     

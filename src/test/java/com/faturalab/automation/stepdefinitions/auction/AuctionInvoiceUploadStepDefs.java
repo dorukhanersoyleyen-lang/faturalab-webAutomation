@@ -112,12 +112,12 @@ public class AuctionInvoiceUploadStepDefs {
         // Build exactly 3 invoices as per successful cURL (unique fields kept external)
         // Invoice 1
         AuctionInvoice inv1 = new AuctionInvoice("0030000049", "1083053674", 75000.0, "PAPER");
-        inv1.setRequestedAmount(75000);
+        inv1.setRequestedAmount(71000);
         inv1.setTaxExclusiveAmount(72000);
         inv1.setCurrencyType("TL");
-        inv1.setDueDate("2025-10-23");
+        inv1.setDueDate(InvoiceTestDataGenerator.getFutureWorkingDate(33));
         inv1.setExtraInvoiceDueDay(0);
-        inv1.setInvoiceDate("2025-09-08");
+        inv1.setInvoiceDate(InvoiceTestDataGenerator.getCurrentDate());
         inv1.setInvoiceETTN("");
         inv1.setInvoiceTypeCode("SATIS");
         inv1.setOrderNo("1002000049");
@@ -126,12 +126,12 @@ public class AuctionInvoiceUploadStepDefs {
         
         // Invoice 2
         AuctionInvoice inv2 = new AuctionInvoice("0000700081", "1083053674", 30000.0, "PAPER");
-        inv2.setRequestedAmount(30000);
-        inv2.setTaxExclusiveAmount(72000);
+        inv2.setRequestedAmount(27000);
+        inv2.setTaxExclusiveAmount(28000);
         inv2.setCurrencyType("TL");
-        inv2.setDueDate("2025-11-07");
+        inv2.setDueDate(InvoiceTestDataGenerator.getFutureWorkingDate(48));
         inv2.setExtraInvoiceDueDay(0);
-        inv2.setInvoiceDate("2025-09-08");
+        inv2.setInvoiceDate(InvoiceTestDataGenerator.getCurrentDate());
         inv2.setInvoiceETTN("");
         inv2.setInvoiceTypeCode("SATIS");
         inv2.setOrderNo("1000400081");
@@ -140,12 +140,12 @@ public class AuctionInvoiceUploadStepDefs {
         
         // Invoice 3
         AuctionInvoice inv3 = new AuctionInvoice("0007000082", "1083053674", 20000.0, "PAPER");
-        inv3.setRequestedAmount(20000);
-        inv3.setTaxExclusiveAmount(72000);
+        inv3.setRequestedAmount(17000);
+        inv3.setTaxExclusiveAmount(18000);
         inv3.setCurrencyType("TL");
-        inv3.setDueDate("2025-10-08");
+        inv3.setDueDate(InvoiceTestDataGenerator.getFutureWorkingDate(18));
         inv3.setExtraInvoiceDueDay(0);
-        inv3.setInvoiceDate("2025-09-08");
+        inv3.setInvoiceDate(InvoiceTestDataGenerator.getCurrentDate());
         inv3.setInvoiceETTN("");
         inv3.setInvoiceTypeCode("SATIS");
         inv3.setOrderNo("1004000082");
@@ -167,6 +167,7 @@ public class AuctionInvoiceUploadStepDefs {
         
         // Call API
         lastResponse = faturalabAPI.uploadAuction(lastAuctionRequest);
+        CucumberHooks.setSharedLastResponse(lastResponse);
         
         // Prepare request details for report
         StringBuilder requestDetails = new StringBuilder();
@@ -247,6 +248,7 @@ public class AuctionInvoiceUploadStepDefs {
         
         // Call API
         lastResponse = faturalabAPI.getAuctionDetail(detailRequest);
+        CucumberHooks.setSharedLastResponse(lastResponse);
         
         // Prepare request details for report
         StringBuilder requestDetails = new StringBuilder();
@@ -321,6 +323,7 @@ public class AuctionInvoiceUploadStepDefs {
         
         // Call API
         lastResponse = faturalabAPI.rejectAuction(rejectRequest);
+        CucumberHooks.setSharedLastResponse(lastResponse);
         
         // Prepare request details for report
         StringBuilder requestDetails = new StringBuilder();
@@ -434,12 +437,24 @@ public class AuctionInvoiceUploadStepDefs {
     
     @When("^zaten var olan invoice numarası ile auction fatura yüklerse$")
     public void zaten_var_olan_invoice_numarasi_ile_auction_fatura_yuklerse(DataTable dataTable) {
-        // Similar to valid upload, but with duplicate invoice number
+        // First upload: Ensure invoice exists
         gecerli_auction_fatura_bilgileri_ile_fatura_yuklerse(dataTable);
         
-        // Note: To make this truly test duplicates, we would need to upload the same invoice twice
-        // For now, this step will behave like a normal upload
-        log.info("Attempting duplicate invoice upload - Status: {}, Response: {}", 
+        Assert.assertTrue(faturalabAPI.isResponseSuccessful(), "First upload should be successful to set up duplicate test");
+        
+        // Second upload: Try to upload SAME invoice again (same invoice numbers)
+        log.info("Attempting duplicate invoice upload (second attempt)");
+        
+        // Generate NEW reference no to avoid Reference No duplication error (we want Invoice duplication error)
+        lastReferenceNo = InvoiceTestDataGenerator.generateUniqueReferenceNo();
+        // Create new request with same invoices but new reference
+        lastAuctionRequest = new UploadAuctionRequest(lastAuctionRequest.getInvoices(), lastReferenceNo, lastAuctionRequest.getUserEmail());
+        
+        // Call API again with same invoices but new reference
+        lastResponse = faturalabAPI.uploadAuction(lastAuctionRequest);
+        CucumberHooks.setSharedLastResponse(lastResponse);
+        
+        log.info("Duplicate invoice upload attempt - Status: {}, Response: {}", 
                 lastResponse.getStatusCode(), lastResponse.getBody().asString());
     }
     
@@ -497,6 +512,7 @@ public class AuctionInvoiceUploadStepDefs {
         
         // Call API
         lastResponse = faturalabAPI.uploadAuction(lastAuctionRequest);
+        CucumberHooks.setSharedLastResponse(lastResponse);
     }
     
     /**
@@ -513,5 +529,6 @@ public class AuctionInvoiceUploadStepDefs {
         
         // Call API
         lastResponse = faturalabAPI.uploadAuction(lastAuctionRequest);
+        CucumberHooks.setSharedLastResponse(lastResponse);
     }
 } 

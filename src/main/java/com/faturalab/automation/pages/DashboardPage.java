@@ -44,11 +44,11 @@ public class DashboardPage extends BasePageObject {
     private final By COMPANY_LIST_MENU = By.xpath("//div[@role='button'][contains(@class, 'menu-button')]//span[contains(text(), 'Firma Listesi')]");
     
     // Firma Listesi menü butonu - Tedarikçi yönetimi bu menü altında
-    private final By FIRMA_LISTESI_MENU = By.xpath("//div[@role='button']//span[contains(text(), 'Firma Listesi')]");
+    private final By FIRMA_LISTESI_MENU = By.xpath("//div[@role='button'][.//span[contains(text(), 'Firma Listesi')]]");
     
     // Tedarikçiler TAB butonu - Firma Listesi sayfasında
-    private final By TEDARIKCI_TAB = By.xpath("//button[contains(text(), 'Tedarikçiler')]");
-    private final By TEDARIKCI_TAB_ALT = By.xpath("//*[contains(text(), 'Tedarikçiler') and not(contains(text(), 'Onay'))]");
+    private final By TEDARIKCI_TAB = By.xpath("//div[contains(@class, 'v-button') and .//span[contains(text(), 'Tedarikçiler')]]");
+    private final By TEDARIKCI_TAB_ALT = By.xpath("//div[contains(@class, 'v-button') and .//span[contains(text(), 'Tedarikçiler') and not(contains(text(), 'Onay'))]]");
     
     // Fatura Yönetimi menü
     private final By INVOICE_MANAGEMENT_MENU = By.xpath("//div[@role='button'][contains(@class, 'menu-button')]//span[contains(text(), 'Fatura')]");
