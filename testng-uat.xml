@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+<!--
+  FaturaLab UAT UI — sadece @uat etiketli Cucumber senaryoları (UATTestRunner).
+
+  Tüm UAT:
+    mvn test "-Denv=dev2" "-DsuiteXmlFile=testng-uat.xml"
+
+  Tek case (ör. FL-001):
+    mvn test "-Denv=dev2" "-DsuiteXmlFile=testng-uat.xml" "-Dcucumber.filter.tags=@fl-001"
+
+  Kritik UAT:
+    mvn test "-Denv=dev2" "-DsuiteXmlFile=testng-uat.xml" "-Dcucumber.filter.tags=@uat and @kritik"
+
+  Raporu tarayıcıda otomatik açmayı kapatmak:
+    mvn test ... -Dfaturalab.open.reports=false
+-->
+<suite name="Faturalab UAT UI Suite" parallel="false" thread-count="1">
+    <parameter name="env" value="dev2"/>
+    <listeners>
+        <listener class-name="com.faturalab.automation.listeners.TestReportListener"/>
+    </listeners>
+    <test name="UAT-Cucumber">
+        <classes>
+            <class name="com.faturalab.automation.runner.UATTestRunner"/>
+        </classes>
+    </test>
+</suite>

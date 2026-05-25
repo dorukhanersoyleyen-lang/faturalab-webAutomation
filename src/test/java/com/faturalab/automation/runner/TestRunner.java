@@ -2,20 +2,13 @@ package com.faturalab.automation.runner;
 
 import io.cucumber.testng.AbstractTestNGCucumberTests;
 import io.cucumber.testng.CucumberOptions;
-import net.masterthought.cucumber.Configuration;
-import net.masterthought.cucumber.ReportBuilder;
-import org.apache.commons.io.FileUtils;
 import org.testng.annotations.AfterSuite;
 import org.testng.annotations.BeforeSuite;
 import org.testng.annotations.BeforeTest;
 import org.testng.annotations.DataProvider;
 
-import java.awt.Desktop;
 import java.io.File;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
+import com.faturalab.automation.reporting.CucumberExtendedReportGenerator;
 import com.faturalab.automation.stepdefinitions.HomePageSteps;
 import com.faturalab.automation.stepdefinitions.Hooks;
 import com.faturalab.automation.stepdefinitions.LoginPageElementsSteps;
@@ -26,8 +19,10 @@ import com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStep
 
 @CucumberOptions(
         features = {"src/test/resources/features"},
-        glue = {"com.faturalab.automation.stepdefinitions", "com.faturalab.automation.hooks"},
-        tags = "not @disabled",  // ALL TESTS except disabled
+        glue = {
+                "com.faturalab.automation.stepdefinitions"
+        },
+        tags = "not @disabled and not @ui",  // non-UI tests; @ui tests are handled by UITestRunner
         plugin = {
                 "pretty",
                 "html:target/cucumber-reports/index.html",
@@ -39,26 +34,6 @@ import com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStep
 )
 public class TestRunner extends AbstractTestNGCucumberTests {
     
-    static {
-        // Ensure step definitions path is correctly set for the JVM
-        String gluePackage = "com.faturalab.automation.stepdefinitions";
-        System.setProperty("cucumber.glue", gluePackage + ",com.faturalab.automation.stepdefinitions.invoice,com.faturalab.automation.hooks");
-        System.out.println("Cucumber glue package is set to: " + System.getProperty("cucumber.glue"));
-        
-        // Force step definition class loading
-        try {
-            System.out.println("Trying to force load step definition classes...");
-            Class.forName("com.faturalab.automation.stepdefinitions.HomePageSteps");
-            Class.forName("com.faturalab.automation.stepdefinitions.Hooks");
-            Class.forName("com.faturalab.automation.stepdefinitions.LoginPageElementsSteps");
-            Class.forName("com.faturalab.automation.stepdefinitions.TedarikciYonetimiSteps");
-            Class.forName("com.faturalab.automation.stepdefinitions.invoice.InvoiceManagementStepDefs");
-            Class.forName("com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStepDefs");
-            System.out.println("Step definition classes loaded successfully.");
-        } catch (ClassNotFoundException e) {
-            System.err.println("Step definition classes could not be loaded: " + e.getMessage());
-        }
-    }
     
     @BeforeTest
     public void registerStepDefinitions() {
@@ -83,7 +58,7 @@ public class TestRunner extends AbstractTestNGCucumberTests {
             
             System.out.println("Loading AuctionInvoiceUploadStepDefs class...");
             new AuctionInvoiceUploadStepDefs();
-            
+
             System.out.println("All step definition classes loaded successfully!");
         } catch (Exception e) {
             System.err.println("Error occurred while loading step definition classes: " + e.getMessage());
@@ -92,6 +67,11 @@ public class TestRunner extends AbstractTestNGCucumberTests {
     }
     
     @BeforeSuite
+    public void markReportSuite() {
+        System.setProperty("faturalab.cucumber.report.suite", "api");
+    }
+
+    @BeforeSuite(dependsOnMethods = "markReportSuite")
     public void ensureDirectoriesExist() {
         try {
             // Ensure report directories exist
@@ -132,67 +112,26 @@ public class TestRunner extends AbstractTestNGCucumberTests {
     
     @AfterSuite
     public void generateReport() {
+        File jsonFile = new File("target/cucumber-reports/cucumber.json");
+        File outDir = new File("target/cucumber-reports/advanced-reports");
+        CucumberExtendedReportGenerator.generate(jsonFile, outDir, "Faturalab Web Automation");
+
         try {
-            File jsonFile = new File("target/cucumber-reports/cucumber.json");
-            
-            // Check if JSON file exists and has content
-            if (!jsonFile.exists()) {
-                System.out.println("Cucumber JSON report not found. Skipping advanced report generation.");
-                return;
-            }
-            
-            if (jsonFile.length() == 0) {
-                System.out.println("Cucumber JSON report is empty. Skipping advanced report generation.");
-                return;
-            }
-            
-            // Read file content to validate JSON
-            String jsonContent = new String(java.nio.file.Files.readAllBytes(jsonFile.toPath()));
-            if (jsonContent.trim().isEmpty() || jsonContent.equals("[]")) {
-                System.out.println("Cucumber JSON report contains no test results. Skipping advanced report generation.");
-                return;
-            }
-            
-            File reportOutputDirectory = new File("target/cucumber-reports/advanced-reports");
-            List<String> jsonFiles = new ArrayList<>();
-            jsonFiles.add("target/cucumber-reports/cucumber.json");
+            Thread.sleep(1500);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
 
-            // Build Configuration
-            String projectName = "Faturalab Web Automation";
-            Configuration configuration = new Configuration(reportOutputDirectory, projectName);
-            configuration.setBuildNumber("1.0");
-            configuration.addClassifications("Platform", System.getProperty("os.name"));
-            configuration.addClassifications("Browser", "Chrome");
-            configuration.addClassifications("Environment", "Test");
-
-            // Build Report
-            ReportBuilder reportBuilder = new ReportBuilder(jsonFiles, configuration);
-            reportBuilder.generateReports();
-            
-            System.out.println("Cucumber Advanced Reports generated at: " + reportOutputDirectory.getAbsolutePath());
-            System.out.println("Advanced Report File: target/cucumber-reports/advanced-reports/cucumber-html-reports/overview-features.html");
-            
-            // Wait for files to be written completely
+        // testng.xml + TestReportListener açıyorsa çift sekme olmasın
+        boolean suiteListener = Boolean.parseBoolean(
+                System.getProperty("faturalab.report.listener.active", "false"));
+        if (!suiteListener && Boolean.parseBoolean(System.getProperty("faturalab.open.reports", "true"))) {
             try {
-                Thread.sleep(2000); // Wait 2 seconds for advanced report files
-                System.out.println("⏳ Waiting for advanced report files to be written...");
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-            
-            // Open report automatically using ReportOpener
-            try {
-                System.out.println("🌐 Opening test reports using ReportOpener...");
-                System.out.println("📊 Priority: Advanced Report > Basic Report > TestNG Report");
                 com.faturalab.automation.utils.ReportOpener.main(new String[]{});
             } catch (Exception e) {
-                System.err.println("❌ Error occurred while opening report: " + e.getMessage());
+                System.err.println("Error opening report: " + e.getMessage());
                 e.printStackTrace();
             }
-            
-        } catch (Exception e) {
-            System.err.println("Error occurred while generating cucumber report: " + e.getMessage());
-            e.printStackTrace();
         }
     }
 } 

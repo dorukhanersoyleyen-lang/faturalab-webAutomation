@@ -8,37 +8,53 @@ import org.openqa.selenium.support.FindBy;
 
 public class HomePage extends BasePageObject {
     
-    // ==================== LOGIN PAGE LOCATORS ====================
-    
-    // Email Input - Vaadin GWT component with v-textfield class
-    private final By EMAIL_INPUT = By.cssSelector("input[type='text'].v-login-textfield-component");
-    
-    // Password Input - Vaadin passwordfield with specific classes
-    private final By PASSWORD_INPUT = By.cssSelector("input[type='password'].v-login-textfield-component");
-    
+    // ==================== LOGIN PAGE LOCATORS — Vaadin 24 ====================
+
+    /**
+     * E-posta adresi input — Vaadin 24 text-field.
+     * DOM: vaadin-text-field[placeholder='E-posta adresi'] > input (shadow slot)
+     */
+    private final By EMAIL_INPUT = By.cssSelector(
+            "vaadin-text-field[placeholder='E-posta adresi'] input");
+
+    /**
+     * Şifre input — Vaadin 24 password-field.
+     * DOM: vaadin-password-field[placeholder='Şifre'] > input
+     */
+    private final By PASSWORD_INPUT = By.cssSelector(
+            "vaadin-password-field[placeholder='Şifre'] input");
+
     // Remember Me Checkbox
-    private final By REMEMBER_ME_CHECKBOX = By.cssSelector("input[type='checkbox']");
-    
-    // Login Button - GİRİŞ YAP (Vaadin renders buttons as div elements)
-    private final By LOGIN_BUTTON = By.cssSelector("div.login-button[role='button']");
-    
-    // SSO Login Button (Vaadin div button)
-    private final By SSO_LOGIN_BUTTON = By.cssSelector("div.login-button.margin-top-15px[role='button']");
-    
-    // Register Button - KAYIT OL (Vaadin div button)
-    private final By REGISTER_BUTTON = By.cssSelector("div.register-button[role='button']");
-    
-    // Forgot Password Button (Vaadin div button)
-    private final By FORGOT_PASSWORD_BUTTON = By.cssSelector("div.forgot-password-button[role='button']");
-    
-    // Error Notification - Warning message container
-    private final By ERROR_NOTIFICATION = By.cssSelector(".v-Notification.notification-warning");
-    
-    // Error Message Caption - "Uyarı" heading
-    private final By ERROR_CAPTION = By.cssSelector(".v-Notification-caption");
-    
-    // Error Message Description - Actual error text
-    private final By ERROR_DESCRIPTION = By.cssSelector(".v-Notification-description");
+    private final By REMEMBER_ME_CHECKBOX = By.cssSelector("input[type='checkbox'], vaadin-checkbox input");
+
+    /**
+     * GİRİŞ YAP butonu — Vaadin 24 vaadin-button.
+     */
+    private final By LOGIN_BUTTON = By.xpath(
+            "//vaadin-button[normalize-space()='GİRİŞ YAP']");
+
+    /**
+     * SSO İLE GİRİŞ butonu — Vaadin 24 vaadin-button.
+     */
+    private final By SSO_LOGIN_BUTTON = By.xpath(
+            "//vaadin-button[normalize-space()='SSO İLE GİRİŞ']");
+
+    // Register Button
+    private final By REGISTER_BUTTON = By.xpath(
+            "//vaadin-button[contains(normalize-space(),'KAYIT OL')] | " +
+            "//vaadin-button[contains(normalize-space(),'Kayıt')]");
+
+    // Forgot Password Button
+    private final By FORGOT_PASSWORD_BUTTON = By.xpath(
+            "//vaadin-button[contains(normalize-space(),'Şifremi Unuttum')] | " +
+            "//vaadin-button[contains(normalize-space(),'Şifre')]");
+
+    // Error / Warning Notification — Vaadin 24
+    private final By ERROR_NOTIFICATION = By.cssSelector("vaadin-notification-container");
+
+    // Error caption / description — Vaadin 24 notification içindeki metin
+    private final By ERROR_CAPTION = By.cssSelector("vaadin-notification-container [slot='prefix'], vaadin-notification-container strong");
+    private final By ERROR_DESCRIPTION = By.cssSelector("vaadin-notification-container span, vaadin-notification-container div");
     
     // Support Email Link
     private final By SUPPORT_EMAIL_LINK = By.linkText("destek@faturalab.com");
@@ -47,20 +63,20 @@ public class HomePage extends BasePageObject {
     private final By RECAPTCHA_IFRAME = By.cssSelector("iframe[title='reCAPTCHA']");
     private final By RECAPTCHA_CHECKBOX = By.cssSelector(".recaptcha-checkbox-border");
     
-    // Faturalab Logo - Multiple locator strategies for reliability
+    // Faturalab Logo — multiple strategies
     private final String LOGO_XPATH = "/html/body/div/div[1]/div/div[1]";
     private final By LOGO_BY_IMAGE = By.cssSelector("img[alt*='Faturalab'], img[alt*='faturalab'], img[src*='logo']");
     private final By LOGO_BY_CLASS = By.cssSelector(".logo, .brand, .header-logo, [class*='logo']");
-    private final By LOGO_BUTTON = By.cssSelector(".v-button.login_logo");
-    
+    private final By LOGO_BUTTON = By.cssSelector("[class*='login_logo'], [class*='logo']");
+
     @FindBy(xpath = "/html/body/div/div[1]/div/div[1]")
     private WebElement logoElement;
+
+    // Language Toggle Button — EN/TR
+    private final By LANGUAGE_BUTTON = By.cssSelector("[class*='language-button'], vaadin-button[class*='language']");
     
-    // Language Toggle Button - EN/TR
-    private final By LANGUAGE_BUTTON = By.cssSelector(".v-button.language-button");
-    
-    // Live Chat Icon (Desk360)
-    private final By LIVE_CHAT_IFRAME = By.id("desk360-chat-iframe");
+    // Live Chat Icon (Desk360) — iframe ID
+    private final By LIVE_CHAT_IFRAME = By.cssSelector("#desk360-chat-iframe, iframe[id*='desk360'], iframe[id*='chat']");
     
     // ==================== CONSTRUCTOR ====================
     

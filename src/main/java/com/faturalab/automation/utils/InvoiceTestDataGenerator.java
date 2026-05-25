@@ -274,4 +274,9 @@ public class InvoiceTestDataGenerator {
     private static String generateHashCode() {
         return UUID.randomUUID().toString().replace("-", "").substring(0, 16);
     }
+
+    /** Entegrasyon API (E-Fatura upload) için kısa hash — {@link #generateValidInvoice} ile uyumlu. */
+    public static String randomApiInvoiceHash() {
+        return generateHashCode();
+    }
 } 

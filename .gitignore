@@ -72,3 +72,7 @@ allure-report/
 *.tmp
 *.swp
 *~ 
+# Claude Agent iç dosyaları
+.claude/
+.clone/
+CURSOR_CONTEXT.md

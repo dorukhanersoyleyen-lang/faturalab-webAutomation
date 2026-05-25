@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Invoice xmlns="urn:oasis:names:specification:ubl:schema:xsd:Invoice-2">
+  <cbc:ID xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">BROKEN-INVALID</cbc:ID>
+  <!-- Intentionally malformed: missing required UBL-TR fields, no signature, no parties -->
+  <cbc:UBLVersionID xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2">0.0</cbc:UBLVersionID>
+  <InvalidTag>This XML is intentionally broken for negative test</InvalidTag>
+</Invoice>

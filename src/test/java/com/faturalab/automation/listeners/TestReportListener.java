@@ -44,41 +44,20 @@ public class TestReportListener implements ISuiteListener {
         }
         
         log.info("===========================");
-        
-        // Open test reports in browser
-        try {
-            System.out.println("🌐 Starting report opener...");
-            System.out.println("📊 Attempting to open test reports in browser...");
-            
-            // Run ReportOpener in a separate thread to avoid blocking
-            Thread reportOpenerThread = new Thread(() -> {
-                try {
-                    System.out.println("⏳ Waiting 3 seconds for report files to be generated...");
-                    Thread.sleep(3000); // Wait 3 seconds for files to be written
-                    
-                    System.out.println("🚀 Executing ReportOpener...");
-                    ReportOpener.main(new String[]{});
-                    
-                } catch (InterruptedException e) {
-                    System.err.println("⚠️ Report opener thread interrupted: " + e.getMessage());
-                    log.error("Report opener thread interrupted: {}", e.getMessage());
-                } catch (Exception e) {
-                    System.err.println("❌ Error in report opener: " + e.getMessage());
-                    log.error("Error opening reports: {}", e.getMessage());
-                    e.printStackTrace();
-                }
-            });
-            
-            reportOpenerThread.setName("ReportOpener-Thread");
-            reportOpenerThread.setDaemon(false); // Make it non-daemon so it completes
-            reportOpenerThread.start();
-            
-            System.out.println("✅ Report opener thread started successfully!");
-            
+
+        // Extended raporu Maven JVM kapanmadan önce aç: aynı thread (bloklar) — arka planda thread Maven ile kesiliyordu
+        if (!Boolean.parseBoolean(System.getProperty("faturalab.open.reports", "true"))) {
+            log.info("Rapor otomatik acilmiyor (faturalab.open.reports=false ile kapatildi).");
+        } else try {
+            int waitMs = Integer.parseInt(System.getProperty("faturalab.report.open.delay.ms", "5000"));
+            System.out.println("Extended rapor icin " + (waitMs / 1000) + " sn bekleniyor, sonra tarayici acilacak...");
+            Thread.sleep(waitMs);
+            ReportOpener.main(new String[]{});
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Report opener interrupted: {}", e.getMessage());
         } catch (Exception e) {
-            System.err.println("❌ Failed to start report opener: " + e.getMessage());
-            log.error("Failed to start report opener: {}", e.getMessage());
-            e.printStackTrace();
+            log.error("Error opening reports: {}", e.getMessage(), e);
         }
         
         System.out.println("=".repeat(60));
@@ -86,6 +65,8 @@ public class TestReportListener implements ISuiteListener {
     
     @Override
     public void onStart(ISuite suite) {
+        System.setProperty("faturalab.report.listener.active", "true");
+
         System.out.println("=".repeat(60));
         System.out.println("🚀 STARTING TEST SUITE");
         System.out.println("Suite Name: " + suite.getName());

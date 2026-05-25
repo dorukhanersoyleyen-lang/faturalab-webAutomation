@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+
+<!--
+    Faturalab UI Test Suite — https://dev.faturalab.com/app (env=dev2)
+    =============================================
+
+    Sadece @ui and @dev2 etiketli Selenium UI testlerini çalıştırır.
+
+    Çalıştırma (IntelliJ): Right-click → Run 'testng-ui.xml'
+    Çalıştırma (Maven):    mvn test -Denv=dev2 -DsuiteXmlFile=testng-ui.xml
+
+    Kimlik bilgileri: src/test/resources/config/dev2.properties
+      admin.email / admin.password        - Admin
+      company.email / company.password    - EFG Gıda A.Ş. (Tedarikçi)
+      buyer.email / buyer.password        - ALBC Marketler (Alıcı)
+      factoring.email / factoring.password - OPR Bankası (Finansman)
+
+    NOT: company/buyer/factoring alanları hâlâ TODO —
+         admin > Kullanıcılar ekranından doldurulmalıdır.
+-->
+
+<suite name="Faturalab UI Test Suite" parallel="false" thread-count="1">
+
+    <parameter name="env" value="dev2"/>
+
+    <listeners>
+        <listener class-name="com.faturalab.automation.listeners.TestReportListener"/>
+    </listeners>
+
+    <!-- Tüm UI testleri -->
+    <test name="UI-All" enabled="true">
+        <classes>
+            <class name="com.faturalab.automation.runner.UITestRunner"/>
+        </classes>
+    </test>
+
+    <!-- Sadece smoke UI testleri -->
+    <test name="UI-Smoke" enabled="false">
+        <classes>
+            <class name="com.faturalab.automation.runner.UITestRunner"/>
+        </classes>
+    </test>
+
+</suite>
