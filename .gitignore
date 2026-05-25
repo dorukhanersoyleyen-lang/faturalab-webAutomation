@@ -73,6 +73,7 @@ allure-report/
 *.swp
 *~ 
 # Claude Agent iç dosyaları
-.claude/
+.claude/**/target/
+.claude/**/allure-results/
 .clone/
 CURSOR_CONTEXT.md

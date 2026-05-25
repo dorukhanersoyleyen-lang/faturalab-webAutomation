@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+
+<!-- 
+    Faturalab Full Test Automation Suite
+    ====================================
+    
+    TEK RUNNER - HER ŞEY BURADAN!
+    - Tüm Feature'lar: API + Web + Auction testleri
+    - Otomatik Browser Rapor Açma
+    
+    Usage: IntelliJ'de Right-click -> Run testng.xml
+-->
+
+<suite name="Faturalab Full Test Suite" parallel="false" thread-count="1">
+    
+    <!-- Listeners for automatic report opening -->
+    <listeners>
+        <listener class-name="com.faturalab.automation.listeners.TestReportListener" />
+    </listeners>
+    
+    <!-- Single Test: ALL Features - API + Web + Auction -->
+    <test name="All-Tests" enabled="true">
+        <classes>
+            <class name="com.faturalab.automation.runner.TestRunner" />
+        </classes>
+    </test>
+    
+</suite> 
