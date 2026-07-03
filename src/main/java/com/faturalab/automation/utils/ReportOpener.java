@@ -63,6 +63,9 @@ public class ReportOpener {
         } else if ("api".equals(suite)) {
             paths.add(pathRootExtended(extRel));
             paths.add("target/cucumber-reports/index.html");
+        } else if ("regression".equals(suite)) {
+            paths.add("target/cucumber-reports/regression/advanced-reports/" + extRel);
+            paths.add("target/cucumber-reports/regression/index.html");
         } else {
             paths.add(pathRootExtended(extRel));
             paths.add(pathUatExtended(extRel));

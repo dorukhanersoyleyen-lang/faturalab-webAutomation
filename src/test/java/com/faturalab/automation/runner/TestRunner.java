@@ -22,7 +22,10 @@ import com.faturalab.automation.stepdefinitions.auction.AuctionInvoiceUploadStep
         glue = {
                 "com.faturalab.automation.stepdefinitions"
         },
-        tags = "not @disabled and not @ui",  // non-UI tests; @ui tests are handled by UITestRunner
+        // non-UI testler; @ui -> UITestRunner, @regression -> RegressionTestRunner.
+        // @regression: step definition'ları henüz yazılmamış / geniş kapsam senaryoları —
+        // günlük API sağlık koşumunu kirletmemesi için varsayılan kapsam dışıdır.
+        tags = "not @disabled and not @ui and not @regression",
         plugin = {
                 "pretty",
                 "html:target/cucumber-reports/index.html",

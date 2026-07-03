@@ -1,5 +1,5 @@
 # language: tr
-@api @faktoring @bordro
+@api @faktoring @bordro @regression
 Özellik: Finansman Bordro (Teklif Talebi) Yönetimi Akışı
 
   Bu özellik finansman kurumunun bordro (teklif talebi) onaylama ve iptal etme

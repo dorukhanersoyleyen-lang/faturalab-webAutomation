@@ -1,5 +1,5 @@
 # language: tr
-@api @ihale @company @low-priority
+@api @ihale @company @low-priority @regression
 Özellik: Tedarikçi İhale Oluşturma Akışı
 
   Bu özellik tedarikçinin ihale oluşturma, yayınlama ve kazanan teklif

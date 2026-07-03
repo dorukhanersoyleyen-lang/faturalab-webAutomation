@@ -1,5 +1,5 @@
 # language: tr
-@api @fatura @onay @admin
+@api @fatura @onay @admin @regression
 Özellik: Admin ve Finansal Kurum Fatura Onaylama Akışı
 
   Bu özellik admin ve finansal kurum tarafından yapılan fatura onaylama,

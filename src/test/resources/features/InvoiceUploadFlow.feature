@@ -1,5 +1,5 @@
 # language: tr
-@api @fatura @company
+@api @fatura @company @regression
 Özellik: Tedarikçi Fatura Yükleme Akışı
 
   Bu özellik tedarikçi tarafında fatura yükleme işlemlerini test eder.

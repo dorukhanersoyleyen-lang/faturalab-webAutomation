@@ -1,5 +1,5 @@
 # language: tr
-@api @faktoring @limit
+@api @faktoring @limit @regression
 Özellik: Finansman Teklif Limit Kontrol Akışı
 
   Bu özellik finansman kuruluşunun teklif verirken uygulanan limit
