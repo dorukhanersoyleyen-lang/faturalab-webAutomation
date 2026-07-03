@@ -61,7 +61,18 @@ public final class CucumberExtendedReportGenerator {
             configuration.addClassifications("Browser", "Chrome");
             configuration.addClassifications("Environment", System.getProperty("env", "test"));
 
-            new ReportBuilder(jsonFiles, configuration).generateReports();
+            // TÜRKÇE LOCALE BUG'I: masterthought, status adını default locale ile
+            // küçültür — TR makinede "FAILED".toLowerCase() = "faıled" (noktasız ı!)
+            // olur, CSS'teki .failed kuralıyla eşleşmez ve fail satırları BEYAZ görünür
+            // (SKIPPED→"skıpped" aynı şekilde). Üretim süresince locale'i İngilizce'ye
+            // sabitleyip sonra geri yüklüyoruz.
+            java.util.Locale previousLocale = java.util.Locale.getDefault();
+            try {
+                java.util.Locale.setDefault(java.util.Locale.ENGLISH);
+                new ReportBuilder(jsonFiles, configuration).generateReports();
+            } finally {
+                java.util.Locale.setDefault(previousLocale);
+            }
 
             File overview = overviewHtmlFile(outputDirectory);
             // Sadece "var mı" değil, "BU çağrıda mı yazıldı" doğrula (tazelik güvencesi).
