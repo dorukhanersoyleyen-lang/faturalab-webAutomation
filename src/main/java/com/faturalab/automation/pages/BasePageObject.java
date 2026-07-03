@@ -125,13 +125,22 @@ public abstract class BasePageObject {
             JavascriptExecutor js = (JavascriptExecutor) driver;
             Boolean shadowHit = (Boolean) js.executeScript(
                     "var kw = arguments[0].toLowerCase();" +
+                    "function isNavLink(node) {" +
+                    "  var tag = (node.tagName || '').toLowerCase();" +
+                    "  if (tag === 'a') {" +
+                    "    var href = (node.getAttribute('href') || '').toLowerCase();" +
+                    // mailto:, tel:, javascript:, # gibi uygulama dışı linkleri atla
+                    "    if (href.startsWith('mailto:') || href.startsWith('tel:') || href.startsWith('javascript:')) return false;" +
+                    "  }" +
+                    "  return tag === 'vaadin-side-nav-item' || tag === 'vaadin-tab' || tag === 'a';" +
+                    "}" +
                     "function walk(node, depth) {" +
                     "  if (!node || depth > 30) return false;" +
                     "  if (node.shadowRoot && walk(node.shadowRoot, depth + 1)) return true;" +
-                    "  var tag = (node.tagName || '').toLowerCase();" +
-                    "  if (tag === 'vaadin-side-nav-item' || tag === 'a' || tag === 'vaadin-tab') {" +
+                    "  if (isNavLink(node)) {" +
                     "    var txt = (node.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
-                    "    if (txt.length && txt.length < 400 && txt.includes(kw)) {" +
+                    // Kısa ve öz menü metinleri: 1-60 karakter, keyword içeriyor
+                    "    if (txt.length >= 1 && txt.length <= 60 && txt.includes(kw)) {" +
                     "      try { node.click(); return true; } catch (e) {}" +
                     "    }" +
                     "  }" +
@@ -155,11 +164,14 @@ public abstract class BasePageObject {
             JavascriptExecutor js = (JavascriptExecutor) driver;
             Boolean found = (Boolean) js.executeScript(
                 "var kw = arguments[0].toLowerCase();" +
-                "var sel = 'vaadin-side-nav-item, vaadin-tab, a[href], [role=\"menuitem\"], [role=\"option\"]';" +
+                // mailto/tel/javascript linkleri hariç tut
+                "var sel = 'vaadin-side-nav-item, vaadin-tab, [role=\"menuitem\"], [role=\"option\"]," +
+                           " a[href]:not([href^=\"mailto:\"]):not([href^=\"tel:\"]):not([href^=\"javascript:\"])';" +
                 "var els = Array.from(document.querySelectorAll(sel));" +
                 "for (var i = 0; i < els.length; i++) {" +
                 "  var txt = (els[i].textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
-                "  if (txt.includes(kw)) { els[i].click(); return true; }" +
+                // Menü öğeleri genellikle kısa (1-60 karakter)
+                "  if (txt.length >= 1 && txt.length <= 60 && txt.includes(kw)) { els[i].click(); return true; }" +
                 "}" +
                 "return false;",
                 textKeyword

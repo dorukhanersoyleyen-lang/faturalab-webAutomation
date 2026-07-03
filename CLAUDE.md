@@ -24,6 +24,18 @@ FaturaLab v2 (`https://dev.faturalab.com/app`) için Selenium + Cucumber BDD + J
 
 ---
 
+## Yeni Omurga Bileşenleri (Temmuz 2026 — TZF-001 ile doğrulandı)
+
+Çok-rol senaryolarının standart altyapısı; yeni senaryolarda önce bunları kullan:
+
+- `context/RoleSessionManager.java` — **filtreli impersonation**: `loginAs(driver, Role.X, identifier, pwd)` = admin login → Kullanıcılar → rol sekmesi → kolon filtre dialogu → GİT → "Evet" onayı (retry'lı + geçiş doğrulamalı). Hedefler properties'te `<alan>.impersonate.identifier` (Türkçe karakter = unicode escape).
+- `utils/VaadinGridFilterHelper.java` — tüm gridlerdeki ortak kolon filtre dialogu (`table-filter-dialog`): `applyOnlyValues(driver, "Fatura No", values)`. Virtual scroll'da kayıt bulmanın tek güvenli yolu.
+- `utils/TzfInvoiceExcelGenerator.java` — runtime .xls test verisi (benzersiz fatura no, iş günü/tatil hesabı). Statik fixture YASAK.
+- `context/TzfScenarioContext.java` — adımlar arası veri taşıma kalıbı.
+- `pages/BuyerBulkUploadPage.java` — alıcı "FATURA YÜKLE & SİL" akışı. ⚠️ Dropzone "Yükle" butonuna asla tıklama (native pencere); upload `input[type=file]` sendKeys.
+- Referans geçen E2E senaryo: `features/ui/uat/TZFIslemUAT.feature` + `TzfIslemUATStepDefs.java`.
+- Detaylı DOM kalıpları ve Vaadin tuzakları: v2_QA reposunda `.claude/rules/web-automation.md`.
+
 ## Mevcut Durum (Mayıs 2026)
 
 ### Tamamlanan Bileşenler ✅

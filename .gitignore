@@ -72,7 +72,14 @@ allure-report/
 *.tmp
 *.swp
 *~ 
-# Claude Agent iç dosyaları
-.claude/
+# Claude Agent iç dosyaları — worktree kopyaları ve yerel ayarlar repoya girmez
+.claude/worktrees/
+.claude/settings.local.json
+.claude/**/target/
+.claude/**/allure-results/
 .clone/
 CURSOR_CONTEXT.md
+
+# JVM crash / replay dökümleri
+hs_err_pid*
+replay_pid*

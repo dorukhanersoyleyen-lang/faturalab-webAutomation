@@ -53,6 +53,11 @@ public class CompanyQuickOfferPage extends BasePageObject {
     public void navigateToIslemBekleyenler() {
         invoice.dismissInvoiceUploadDialogIfOpen();
         tryOpenNavigationDrawer();
+        // Tedarikçi sidebar'ında sayfa adı "İşlemdekiler" (2026-07-02 canlı DOM)
+        if (clickNavItemByText("işlemdekiler") || clickNavItemByText("islemdekiler")) {
+            waitForVaadinNavigation();
+            return;
+        }
         if (!clickNavItemByText("işlem bekleyen")) {
             clickNavItemByText("islem bekleyen");
         }
@@ -364,6 +369,266 @@ public class CompanyQuickOfferPage extends BasePageObject {
             log.debug("peek toast: {}", e.getMessage());
         }
         return false;
+    }
+
+    // ─── TZF işlemi akışı ────────────────────────────────────────────────────
+
+    /**
+     * Fatura listesinde verilen fatura numarasının satırındaki "TEKLİF AL" butonuna tıklar.
+     * Satır bazlı buton bulunamazsa sayfadaki ilk TEKLİF AL butonuna düşer.
+     */
+    public boolean clickTeklifAlForInvoice(String invoiceNo) {
+        try {
+            invoice.dismissInvoiceUploadDialogIfOpen();
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.cssSelector("vaadin-grid")));
+            Object result = ((JavascriptExecutor) driver).executeScript(
+                    "var invoiceNo = arguments[0];" +
+                    "var cells = Array.from(document.querySelectorAll('vaadin-grid-cell-content'));" +
+                    "var targetIdx = -1;" +
+                    "for (var i = 0; i < cells.length; i++) {" +
+                    "  if ((cells[i].textContent || '').includes(invoiceNo)) { targetIdx = i; break; }" +
+                    "}" +
+                    "function isTeklifAl(b) {" +
+                    "  var t = (b.textContent || '').toUpperCase().replace(/\\s+/g,' ').trim();" +
+                    "  if (b.disabled || (!t.includes('TEKLİF AL') && !t.includes('TEKLIF AL'))) return false;" +
+                    "  var r = b.getBoundingClientRect();" + // virtual scroll cache butonlarını atla
+                    "  return r.width > 2 && r.height > 2;" +
+                    "}" +
+                    "if (targetIdx >= 0) {" +
+                    // Aynı satır: fatura no hücresinin komşu hücrelerinde TEKLİF AL ara
+                    "  for (var j = targetIdx; j < Math.min(cells.length, targetIdx + 15); j++) {" +
+                    "    var btns = cells[j].querySelectorAll('vaadin-button, button');" +
+                    "    for (var b of btns) { if (isTeklifAl(b)) { b.click(); return 'row_match'; } }" +
+                    "  }" +
+                    "  for (var k = Math.max(0, targetIdx - 15); k < targetIdx; k++) {" +
+                    "    var btns2 = cells[k].querySelectorAll('vaadin-button, button');" +
+                    "    for (var b2 of btns2) { if (isTeklifAl(b2)) { b2.click(); return 'row_match_back'; } }" +
+                    "  }" +
+                    "}" +
+                    "var all = Array.from(document.querySelectorAll('vaadin-button, button'));" +
+                    "for (var a of all) { if (isTeklifAl(a)) { a.click(); return 'first_fallback'; } }" +
+                    "return null;",
+                    invoiceNo);
+            log.info("TEKLİF AL tıklama sonucu ({}): {}", invoiceNo, result);
+            if (result != null) {
+                Thread.sleep(1000);
+                return true;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("clickTeklifAlForInvoice ({}): {}", invoiceNo, e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Açılan teklif modalında hiçbir alanı değiştirmeden tekrar "Teklif Al" butonuna basar.
+     */
+    public boolean confirmTeklifAlInModal() {
+        try {
+            Boolean clicked = (Boolean) ((JavascriptExecutor) driver).executeScript(
+                    "function visible(el) {" +
+                    "  var r = el.getBoundingClientRect();" +
+                    "  return r.width > 2 && r.height > 2;" +
+                    "}" +
+                    "var overlays = document.querySelectorAll('vaadin-dialog-overlay');" +
+                    "for (var o of overlays) {" +
+                    "  if (!visible(o)) continue;" +
+                    "  var btns = o.querySelectorAll('vaadin-button, button');" +
+                    "  for (var b of btns) {" +
+                    "    var t = (b.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "    if (!b.disabled && (t.includes('teklif al') || t === 'teklif al')) { b.click(); return true; }" +
+                    "  }" +
+                    "}" +
+                    "return false;");
+            if (Boolean.TRUE.equals(clicked)) {
+                log.info("Modal içinde 'Teklif Al' onaylandı.");
+                Thread.sleep(1200);
+                acceptVaadinConfirmDialogIfPresent();
+                return true;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("confirmTeklifAlInModal: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Teklif sonrası "İşlemdekiler" sayfasına otomatik yönlenmeyi bekler.
+     * Yönlenme gelmezse menüden kendisi gider.
+     */
+    public boolean waitForIslemdekilerPage(int timeoutSeconds) {
+        long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
+        while (System.currentTimeMillis() < deadline) {
+            if (isOnIslemdekilerPage()) {
+                log.info("İşlemdekiler sayfasına yönlenildi.");
+                return true;
+            }
+            try {
+                Thread.sleep(700);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        log.warn("İşlemdekiler yönlenmesi gelmedi — menüden gidiliyor.");
+        navigateToIslemBekleyenler();
+        waitForVaadinNavigation();
+        return isOnIslemdekilerPage();
+    }
+
+    private boolean isOnIslemdekilerPage() {
+        try {
+            Boolean onPage = (Boolean) ((JavascriptExecutor) driver).executeScript(
+                    "var url = (window.location.href || '').toLowerCase();" +
+                    "if (url.includes('islemdeki') || url.includes('bekleyen')) return true;" +
+                    "var body = (document.body.innerText || '').toUpperCase();" +
+                    "return body.includes('KABUL / İPTAL') || body.includes('KABUL/İPTAL') " +
+                    "    || (body.includes('İŞLEMDEKİLER') && body.includes('KABUL'));");
+            return Boolean.TRUE.equals(onPage);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** İşlemdekiler listesinde ilk satırın "Kabul / İptal" butonuna basar. */
+    public boolean clickKabulIptal() {
+        try {
+            Boolean clicked = (Boolean) ((JavascriptExecutor) driver).executeScript(
+                    "var btns = Array.from(document.querySelectorAll('vaadin-button, button'));" +
+                    "for (var b of btns) {" +
+                    "  var t = (b.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "  if (!b.disabled && t.includes('kabul') && (t.includes('iptal') || t.includes('/'))) {" +
+                    "    b.click(); return true;" +
+                    "  }" +
+                    "}" +
+                    // tek başına 'KABUL' etiketi taşıyan liste aksiyonu
+                    "for (var b2 of btns) {" +
+                    "  var t2 = (b2.textContent || '').toLowerCase().trim();" +
+                    "  if (!b2.disabled && t2 === 'kabul') { b2.click(); return true; }" +
+                    "}" +
+                    "return false;");
+            if (Boolean.TRUE.equals(clicked)) {
+                log.info("'Kabul / İptal' butonuna tıklandı.");
+                Thread.sleep(1200);
+                return true;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("clickKabulIptal: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    /**
+     * Kabul/İptal modalında aşağı kaydırıp "Teklifler" sekmesi altındaki
+     * ilk teklifin "Kabul Et" butonuna basar.
+     */
+    public boolean acceptFirstOfferInModal() {
+        try {
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            // Modal içeriğini en alta kaydır (Teklifler bölümü modalın altında)
+            js.executeScript(
+                    "var overlays = document.querySelectorAll('vaadin-dialog-overlay');" +
+                    "for (var o of overlays) {" +
+                    "  var r = o.getBoundingClientRect();" +
+                    "  if (r.width < 2) continue;" +
+                    "  var scrollables = [o].concat(Array.from(o.querySelectorAll('*')));" +
+                    "  if (o.shadowRoot) {" +
+                    "    var content = o.shadowRoot.querySelector('[part=\"content\"], [part=\"overlay\"]');" +
+                    "    if (content) scrollables.unshift(content);" +
+                    "  }" +
+                    "  for (var s of scrollables) {" +
+                    "    if (s.scrollHeight > s.clientHeight + 10) { s.scrollTop = s.scrollHeight; }" +
+                    "  }" +
+                    "}");
+            Thread.sleep(700);
+
+            // "Teklifler" sekmesi/başlığı varsa tıkla
+            js.executeScript(
+                    "var overlay = document.querySelector('vaadin-dialog-overlay');" +
+                    "var root = overlay || document;" +
+                    "var els = root.querySelectorAll('vaadin-tab, [role=\"tab\"], vaadin-button, h3, h4, span');" +
+                    "for (var el of els) {" +
+                    "  var t = (el.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "  if (t === 'teklifler' || t === 'gelen teklifler') { el.click(); return true; }" +
+                    "}" +
+                    "return false;");
+            Thread.sleep(700);
+
+            // İlk sıradaki "Kabul Et" butonu
+            Boolean accepted = (Boolean) js.executeScript(
+                    "var overlay = document.querySelector('vaadin-dialog-overlay');" +
+                    "var root = overlay || document;" +
+                    "var btns = root.querySelectorAll('vaadin-button, button');" +
+                    "for (var b of btns) {" +
+                    "  var t = (b.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "  if (!b.disabled && (t === 'kabul et' || t.includes('kabul et'))) {" +
+                    "    try { b.scrollIntoView({block:'center'}); } catch (e) {}" +
+                    "    b.click(); return true;" +
+                    "  }" +
+                    "}" +
+                    "return false;");
+            if (Boolean.TRUE.equals(accepted)) {
+                log.info("Teklifler altındaki ilk 'Kabul Et' butonuna tıklandı.");
+                Thread.sleep(1000);
+                return true;
+            }
+            log.warn("'Kabul Et' butonu modalda bulunamadı.");
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("acceptFirstOfferInModal: {}", e.getMessage());
+        }
+        return false;
+    }
+
+    /** Kabul sonrası gelen "Evet" onay modalını onaylar. */
+    public boolean confirmEvet() {
+        acceptVaadinConfirmDialogIfPresent();
+        return true;
+    }
+
+    /**
+     * Kabul onayı sonrası ekranda görünen bordro numarasını yakalar.
+     * Bildirim toast'ı, açık dialog ve sayfa gövdesini "bordro" kelimesi
+     * çevresindeki alfasayısal değer için tarar.
+     *
+     * @return bordro no; bulunamazsa null
+     */
+    public String captureBordroNo() {
+        try {
+            Object found = ((JavascriptExecutor) driver).executeScript(
+                    "var sources = [];" +
+                    "var cards = document.querySelectorAll('vaadin-notification-card, vaadin-notification-container');" +
+                    "for (var c of cards) sources.push(c.textContent || '');" +
+                    "var overlays = document.querySelectorAll('vaadin-dialog-overlay, vaadin-confirm-dialog-overlay');" +
+                    "for (var o of overlays) sources.push(o.textContent || '');" +
+                    "sources.push(document.body.innerText || '');" +
+                    // Bordro no formatı (canlıda doğrulandı): A2026_77768 — harf + yıl + '_' + sıra.
+                    // Genel desen tarih (02.07.2026) gibi değerleri yanlış yakalıyordu.
+                    "var reStrict = /bordro\\s*(?:no|numaras[ıi])?\\s*[:#]?\\s*([A-Z]\\d{4}_\\d{2,})/i;" +
+                    "var reAny = /([A-Z]\\d{4}_\\d{2,})/;" +
+                    "for (var s of sources) {" +
+                    "  var m = s.match(reStrict);" +
+                    "  if (m && m[1]) return m[1];" +
+                    "}" +
+                    "for (var s2 of sources) {" +
+                    "  var m2 = s2.match(reAny);" +
+                    "  if (m2 && m2[1]) return m2[1];" +
+                    "}" +
+                    "return null;");
+            String bordroNo = found != null ? found.toString().trim() : null;
+            log.info("Bordro no yakalama sonucu: {}", bordroNo);
+            return bordroNo;
+        } catch (Exception e) {
+            log.warn("captureBordroNo: {}", e.getMessage());
+            return null;
+        }
     }
 
     /** Fatura listesinde en az bir anlamlı hücre var mı (boş grid = false). */

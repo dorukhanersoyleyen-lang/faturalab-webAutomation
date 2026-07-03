@@ -97,21 +97,11 @@ public class ReportOpener {
             return false;
         }
         try {
-            if (Desktop.isDesktopSupported()) {
-                Desktop desktop = Desktop.getDesktop();
-                if (desktop.isSupported(Desktop.Action.OPEN)) {
-                    desktop.open(htmlFile);
-                    return true;
-                }
-                if (desktop.isSupported(Desktop.Action.BROWSE)) {
-                    desktop.browse(htmlFile.getCanonicalFile().toURI());
-                    return true;
-                }
-            }
-
             String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
             String filePath = htmlFile.getCanonicalPath();
 
+            // Windows: Desktop.open() sistem varsayılan uygulamasını açar; HTML dosyası
+            // Outlook'a bağlıysa Outlook açılır. Bu yüzden doğrudan "start" komutu kullanıyoruz.
             if (os.contains("win")) {
                 new ProcessBuilder("cmd.exe", "/c", "start", "", filePath).start();
                 return true;

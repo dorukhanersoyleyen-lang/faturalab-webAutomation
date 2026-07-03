@@ -5,6 +5,7 @@ import com.faturalab.automation.driver.DriverManager;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.openqa.selenium.Cookie;
+import org.openqa.selenium.JavascriptExecutor;
 import org.openqa.selenium.WebDriver;
 
 import java.util.HashMap;
@@ -60,24 +61,16 @@ public class RoleSessionManager {
     private static final Map<Role, String[]> defaultCredentials = new HashMap<>();
 
     static {
-        // ConfigReader üzerinden dev2.properties'teki değerleri yükle
+        // Tüm roller için admin kimliği kullanılır.
+        // Admin login sonrası Kullanıcılar ekranından hedef kullanıcıya geçiş yapılır.
         try {
-            defaultCredentials.put(Role.ADMIN, new String[]{
-                    ConfigReader.getProperty("admin.email"),
-                    ConfigReader.getProperty("admin.password")
-            });
-            defaultCredentials.put(Role.COMPANY, new String[]{
-                    ConfigReader.getProperty("company.email"),
-                    ConfigReader.getProperty("company.password")
-            });
-            defaultCredentials.put(Role.BUYER, new String[]{
-                    ConfigReader.getProperty("buyer.email"),
-                    ConfigReader.getProperty("buyer.password")
-            });
-            defaultCredentials.put(Role.FACTORING, new String[]{
-                    ConfigReader.getProperty("factoring.email"),
-                    ConfigReader.getProperty("factoring.password")
-            });
+            String adminEmail    = ConfigReader.getProperty("admin.email");
+            String adminPassword = ConfigReader.getProperty("admin.password");
+
+            defaultCredentials.put(Role.ADMIN,     new String[]{ adminEmail, adminPassword });
+            defaultCredentials.put(Role.COMPANY,   new String[]{ adminEmail, adminPassword });
+            defaultCredentials.put(Role.BUYER,     new String[]{ adminEmail, adminPassword });
+            defaultCredentials.put(Role.FACTORING, new String[]{ adminEmail, adminPassword });
         } catch (Exception e) {
             log.warn("Kimlik bilgileri properties'ten yüklenemedi: {}", e.getMessage());
         }
@@ -87,41 +80,491 @@ public class RoleSessionManager {
 
     /**
      * Verilen role ile giriş yapar ve oturumu cookie'ye kaydeder.
-     * Login sayfası URL'si base.url'den alınır.
+     *
+     * Akış:
+     *   1. Admin olarak login ol (dorukhan.ersoyleyen@faturalab.com)
+     *   2. Hedef rol ADMIN ise burada dur — admin oturumu yeterli.
+     *   3. Hedef rol COMPANY/BUYER/FACTORING ise:
+     *      Yönetim Paneli → Kullanıcılar → hedef kullanıcıyı bul → "Olarak Giriş Yap" tıkla
      */
     public static void loginAs(WebDriver driver, Role role, String email, String password) {
         String baseUrl = ConfigReader.getProperty("base.url");
-        log.info("[{}] Login başlatılıyor: {} → {}", role.getDisplayName(), email, baseUrl);
+        String adminEmail    = ConfigReader.getProperty("admin.email");
+        String adminPassword = ConfigReader.getProperty("admin.password");
 
-        try {
-            driver.manage().deleteAllCookies();
-        } catch (Exception e) {
-            log.warn("[{}] Cookie temizleme başarısız: {} — devam ediliyor.", role.getDisplayName(), e.getMessage());
-        }
+        log.info("[{}] Admin ile login başlatılıyor: {} → {}", role.getDisplayName(), adminEmail, baseUrl);
+
+        try { driver.manage().deleteAllCookies(); } catch (Exception ignored) {}
+
         try {
             driver.get(baseUrl);
         } catch (Exception e) {
-            log.warn("[{}] Base URL navigate başarısız: {} — yeni navigasyon deneniyor.", role.getDisplayName(), e.getMessage());
-            try {
-                driver.navigate().to(baseUrl);
-            } catch (Exception e2) {
-                log.error("[{}] Base URL navigate tamamen başarısız: {}", role.getDisplayName(), e2.getMessage());
-                throw new RuntimeException("Login navigasyonu başarısız: " + e2.getMessage(), e2);
-            }
+            try { driver.navigate().to(baseUrl); }
+            catch (Exception e2) { throw new RuntimeException("Login navigasyonu başarısız: " + e2.getMessage(), e2); }
         }
 
-        // Login form doldur
-        performLogin(driver, email, password);
-
-        // Dashboard yüklenene kadar bekle
+        // 1. Admin olarak login
+        performLogin(driver, adminEmail, adminPassword);
         waitForDashboard(driver);
+        log.info("[{}] Admin login tamamlandı.", role.getDisplayName());
 
-        // Cookie'leri kaydet
+        // 2. Hedef rol admin ise oturumu kaydet ve çık
+        if (role == Role.ADMIN) {
+            Set<Cookie> cookies = new HashSet<>(driver.manage().getCookies());
+            sessionCookies.put(role, cookies);
+            lastUrls.put(role, driver.getCurrentUrl());
+            log.info("[{}] Oturum kaydedildi: {} cookie", role.getDisplayName(), cookies.size());
+            return;
+        }
+
+        // 3. Hedef kullanıcıya geç: email parametresi burada impersonate identifier'dır
+        //    (dev2.properties'teki company/buyer/factoring.impersonate.identifier)
+        impersonateUser(driver, role, email);
+
+        // 3b. Geçişi doğrula: hâlâ admin Kullanıcılar ekranındaysak yanlış oturumla
+        //     devam etmek tüm senaryoyu sessizce bozar — açık hata ver.
+        boolean switched = waitForJsCondition(driver, 15,
+                "return (document.body.innerText || '').indexOf('Yeni Admin Ekle') < 0;");
+        if (!switched) {
+            throw new IllegalStateException("[" + role.getDisplayName()
+                    + "] impersonation doğrulanamadı — sayfa hâlâ admin Kullanıcılar ekranında. Hedef: " + email);
+        }
+
+        // Oturumu kaydet
         Set<Cookie> cookies = new HashSet<>(driver.manage().getCookies());
         sessionCookies.put(role, cookies);
         lastUrls.put(role, driver.getCurrentUrl());
+        log.info("[{}] İmpersonate oturumu kaydedildi: {} cookie", role.getDisplayName(), cookies.size());
+    }
 
-        log.info("[{}] Oturum kaydedildi: {} cookie", role.getDisplayName(), cookies.size());
+    /**
+     * Admin panelinde Kullanıcılar ekranına gidip hedef firma/email'e göre
+     * kullanıcı satırını bulur ve "Olarak Giriş Yap" / login butonuna tıklar.
+     *
+     * Admin sidebar butonları vaadin-button kullandığı için AdminPanelPage.clickSidebarItem() kullanılır.
+     */
+    private static void impersonateUser(WebDriver driver, Role role, String targetIdentifier) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        log.info("[{}] Kullanıcıya geçiş başlatılıyor: {}", role.getDisplayName(), targetIdentifier);
+
+        try {
+            // 1. Admin sidebar'dan "Kullanıcılar"a tıkla
+            //    AdminPanelPage.clickSidebarItem() kullanır: //vaadin-button[normalize-space()='Kullanıcılar']
+            new com.faturalab.automation.pages.AdminPanelPage(driver).clickSidebarItem("Kullanıcılar");
+            waitForVaadinStatic(driver);
+            log.info("[{}] Kullanıcılar ekranına gidildi.", role.getDisplayName());
+
+            // 2. Sayfadaki tüm vaadin-button ve button'ları logla (debug)
+            Object btns = js.executeScript(
+                "return Array.from(document.querySelectorAll('vaadin-button,button'))" +
+                ".map(b => b.textContent.trim().substring(0,40)).filter(t=>t).join(' | ')");
+            log.info("[{}] Kullanıcılar sayfasındaki butonlar: {}", role.getDisplayName(), btns);
+
+            // 3. Sekme geçişi: Rolle eşleşen sekmeye tıkla (Ticari İşletme / Finansal Kurum / Alıcı)
+            String tabName = roleToTabName(role);
+            js.executeScript(
+                "var kw = arguments[0].toLowerCase();" +
+                "var tabs = document.querySelectorAll('vaadin-button');" +
+                "for (var t of tabs) {" +
+                "  var txt = (t.textContent || '').toLowerCase().trim();" +
+                "  if (txt === kw) { t.click(); return true; }" +
+                "}" +
+                "return false;", tabName);
+            waitForVaadinStatic(driver);
+            log.info("[{}] Sekmeye tıklandı: {}", role.getDisplayName(), tabName);
+
+            // 4. Grid yüklenene kadar bekle — Vaadin grid asenkron render
+            waitForVaadinStatic(driver);
+            waitForVaadinStatic(driver); // 2x 1.5sn = 3sn toplam
+
+            // Sayfadaki tüm butonları logla (debug)
+            Object allBtns2 = js.executeScript(
+                "return Array.from(document.querySelectorAll('vaadin-button,button'))" +
+                ".map(function(b){return (b.textContent||'').trim().substring(0,30);})" +
+                ".filter(function(t){return t.length>0;}).join(' | ')");
+            log.info("[{}] Sekme sonrasi butonlar: {}", role.getDisplayName(), allBtns2);
+
+            // 5. Önce kolon filtresiyle hedefli geçiş dene:
+            //    filtre popup → hedefi ara → checkbox seç → Tamam → GİT → "Evet" onayı.
+            //    (git_first_fallback'in yanlış kullanıcıya girme riskini ortadan kaldırır)
+            if (impersonateViaColumnFilter(driver, role, targetIdentifier)) {
+                acceptGitConfirmModal(driver);
+                waitForDashboard(driver);
+                log.info("[{}] Filtreli GİT ile kullanıcıya geçildi: {} — URL: {}",
+                        role.getDisplayName(), targetIdentifier, driver.getCurrentUrl());
+                return;
+            }
+            log.warn("[{}] Filtreli geçiş başarısız — eski hücre eşleşme yöntemi deneniyor.",
+                    role.getDisplayName());
+
+            // 5b. Hedef kullanıcıyı bul: önce grid cells'de ara, yoksa ilk GİT'e tıkla
+            Object switched = js.executeScript(
+                "var target = arguments[0].toLowerCase();" +
+                "var gitBtns = Array.from(document.querySelectorAll('vaadin-button')).filter(function(b) {" +
+                "  var t = (b.textContent||'').trim();" +
+                "  return t === 'GİT' || t.toUpperCase() === 'GIT';" +
+                "});" +
+                "if (gitBtns.length === 0) return 'no_git_btn';" +
+                "var cells = Array.from(document.querySelectorAll('vaadin-grid-cell-content'));" +
+                "for (var i = 0; i < cells.length; i++) {" +
+                "  if ((cells[i].textContent||'').toLowerCase().includes(target)) {" +
+                "    gitBtns[0].click(); return 'git_by_cell_match';" +
+                "  }" +
+                "}" +
+                "gitBtns[0].click(); return 'git_first_fallback';" ,
+                targetIdentifier);
+
+            String result = switched != null ? switched.toString() : "null";
+            log.info("[{}] impersonate JS sonuç: {}", role.getDisplayName(), result);
+
+            if (result.startsWith("git") || result.startsWith("clicked")) {
+                // GİT tıklandı — "oturum açmak istiyor musunuz" modalı varsa onayla
+                waitForVaadinStatic(driver);
+                acceptGitConfirmModal(driver);
+                waitForVaadinStatic(driver);
+                String urlAfterGit = driver.getCurrentUrl();
+                Object bodyAfterGit = js.executeScript(
+                    "return Array.from(document.querySelectorAll('vaadin-button,button'))" +
+                    ".map(function(b){return (b.textContent||'').trim().substring(0,30);})" +
+                    ".filter(function(t){return t.length>0;}).slice(0,20).join(' | ')");
+                log.info("[{}] GIT sonrasi URL: {}", role.getDisplayName(), urlAfterGit);
+                log.info("[{}] GIT sonrasi butonlar: {}", role.getDisplayName(), bodyAfterGit);
+                waitForDashboard(driver);
+                log.info("[{}] Dashboard sonrasi URL: {}", role.getDisplayName(), driver.getCurrentUrl());
+            } else {
+                log.warn("[{}] GIT butonu bulunamadi ({}), shadow DOM fallback deneniyor.", role.getDisplayName(), result);
+                impersonateFallbackViaGrid(driver, role, targetIdentifier);
+            }
+
+        } catch (Exception e) {
+            log.error("[{}] impersonateUser hatasi: {}", role.getDisplayName(), e.getMessage());
+        }
+    }
+
+    private static String roleToTabName(Role role) {
+        switch (role) {
+            case COMPANY:   return "Ticari İşletme";
+            case BUYER:     return "Alıcı";
+            case FACTORING: return "Finansal Kurum";
+            default:        return "Admin";
+        }
+    }
+
+    /**
+     * Kullanıcılar grid'inde rol kolonunun filtre dialogu üzerinden hedefli geçiş.
+     *
+     * Canlı DOM'da doğrulanmış yapı (2026-07-02):
+     *  - Kolon başlığı: vaadin-grid-cell-content > .filter-header-cell > span.filter-icon + span.filter-text
+     *  - Filtre dialogu: vaadin-dialog-overlay.table-filter-dialog
+     *  - Arama kutusu: dialog içinde vaadin-text-field[label="Ara"] input
+     *  - Liste: vaadin-grid.check-table — checkbox hücresi, firma adı hücresinin HEMEN ÖNÜNDE ayrı hücrededir
+     *  - Varsayılan durumda TÜM checkbox'lar seçilidir (= filtre yok); önce "(Tümünü seç)" kaldırılır
+     *  - Onay: 'Tamam' / 'Vazgeç' butonları
+     *
+     * Filtre sonrası yalnızca GÖRÜNÜR (rect > 0) GİT butonuna tıklanır — Vaadin grid'in
+     * virtual scroll cache'i DOM'da eski hücreleri tutar, sayaç/ilk-buton güvenilmezdir.
+     * Hedef satır görünür değilse tıklama YAPILMAZ (yanlış kullanıcıya geçiş engellenir).
+     *
+     * @return GİT'e kadar tüm adımlar başarılıysa true
+     */
+    private static boolean impersonateViaColumnFilter(WebDriver driver, Role role, String target) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        String columnKeyword = roleToTabName(role); // kolon başlığı = sekme adıyla aynı
+
+        try {
+            // 1. Kolon başlığındaki filtre ikonuna tıkla → table-filter-dialog açılır
+            Object headerHit = js.executeScript(
+                "var kw = arguments[0].toLowerCase();" +
+                "var headers = document.querySelectorAll('vaadin-grid-cell-content .filter-header-cell');" +
+                "for (var h of headers) {" +
+                "  var txtEl = h.querySelector('span.filter-text');" +
+                "  var t = ((txtEl ? txtEl.textContent : h.textContent) || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                "  if (t === kw || t.includes(kw)) {" +
+                "    var icon = h.querySelector('span.filter-icon');" +
+                "    (icon || h).click();" +
+                "    return t;" +
+                "  }" +
+                "}" +
+                "return null;", columnKeyword.toLowerCase(Locale.ROOT));
+            if (headerHit == null) {
+                log.warn("[{}] Filtre kolonu başlığı bulunamadı: {}", role.getDisplayName(), columnKeyword);
+                return false;
+            }
+            log.info("[{}] Filtre ikonuna tıklandı: '{}'", role.getDisplayName(), headerHit);
+
+            // 2. table-filter-dialog'un açılmasını bekle (poll)
+            if (!waitForJsCondition(driver, 8,
+                    "return !!document.querySelector('vaadin-dialog-overlay.table-filter-dialog[opened], " +
+                    "vaadin-dialog-overlay.table-filter-dialog');")) {
+                log.warn("[{}] table-filter-dialog açılmadı.", role.getDisplayName());
+                return false;
+            }
+
+            // 3. "(Tümünü seç)" işaretini kaldır → tüm seçimler temizlenir
+            Object unselectAll = js.executeScript(
+                "var dlg = document.querySelector('vaadin-dialog-overlay.table-filter-dialog');" +
+                "var cells = Array.from(dlg.querySelectorAll('vaadin-grid.check-table vaadin-grid-cell-content'));" +
+                "var idx = cells.findIndex(function(c) { return (c.textContent||'').indexOf('münü seç') >= 0; });" +
+                "if (idx < 1) return 'tumunu_sec_yok';" +
+                "var cb = cells[idx - 1].querySelector('vaadin-checkbox, input[type=checkbox]');" +
+                "if (!cb) return 'checkbox_yok';" +
+                "if (cb.checked === true) { cb.click(); return 'temizlendi'; }" +
+                "return 'zaten_bos';");
+            log.info("[{}] Tümünü seç: {}", role.getDisplayName(), unselectAll);
+            waitForVaadinStatic(driver);
+
+            // 4. "Ara" kutusuna hedefi yaz
+            Boolean typed = (Boolean) js.executeScript(
+                "var target = arguments[0];" +
+                "var dlg = document.querySelector('vaadin-dialog-overlay.table-filter-dialog');" +
+                "var inp = dlg.querySelector('vaadin-text-field[label=\"Ara\"] input');" +
+                "if (!inp) {" +
+                "  var inputs = Array.from(dlg.querySelectorAll('input[type=\"text\"], input:not([type])'));" +
+                "  inp = inputs.length ? inputs[inputs.length - 1] : null;" +
+                "}" +
+                "if (!inp) return false;" +
+                "inp.focus();" +
+                "inp.value = target;" +
+                "inp.dispatchEvent(new Event('input', {bubbles: true}));" +
+                "inp.dispatchEvent(new Event('change', {bubbles: true}));" +
+                "return true;", target);
+            if (!Boolean.TRUE.equals(typed)) {
+                log.warn("[{}] Filtre 'Ara' kutusu bulunamadı.", role.getDisplayName());
+                return false;
+            }
+            log.info("[{}] Filtre aramasına yazıldı: {}", role.getDisplayName(), target);
+            waitForVaadinStatic(driver);
+
+            // 5. Hedef firmanın checkbox'ını işaretle (checkbox = ad hücresinin önceki hücresi)
+            Object checked = js.executeScript(
+                "var target = arguments[0].toLowerCase();" +
+                "var dlg = document.querySelector('vaadin-dialog-overlay.table-filter-dialog');" +
+                "var cells = Array.from(dlg.querySelectorAll('vaadin-grid.check-table vaadin-grid-cell-content'));" +
+                "var idx = cells.findIndex(function(c) {" +
+                "  var t = (c.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                "  return t.length > 0 && t.indexOf('münü seç') < 0 && t.includes(target);" +
+                "});" +
+                "if (idx < 1) return null;" +
+                "var cb = cells[idx - 1].querySelector('vaadin-checkbox, input[type=checkbox]');" +
+                "if (!cb) return null;" +
+                "if (cb.checked !== true) { cb.click(); return 'isaretlendi'; }" +
+                "return 'zaten_isaretli';", target);
+            if (checked == null) {
+                log.warn("[{}] Filtre listesinde hedef bulunamadı: {}", role.getDisplayName(), target);
+                return false;
+            }
+            log.info("[{}] Hedef checkbox: {}", role.getDisplayName(), checked);
+            waitForVaadinStatic(driver);
+
+            // 6. Tamam'a bas
+            Boolean confirmed = (Boolean) js.executeScript(
+                "var dlg = document.querySelector('vaadin-dialog-overlay.table-filter-dialog');" +
+                "var btns = dlg.querySelectorAll('vaadin-button, button');" +
+                "for (var b of btns) {" +
+                "  if ((b.textContent || '').trim() === 'Tamam') { b.click(); return true; }" +
+                "}" +
+                "return false;");
+            if (!Boolean.TRUE.equals(confirmed)) {
+                log.warn("[{}] Filtre dialogu 'Tamam' butonu bulunamadı.", role.getDisplayName());
+                return false;
+            }
+
+            // 7. Grid'in filtrelenmesini bekle: hedef satır GÖRÜNÜR olana kadar poll
+            boolean rowVisible = waitForJsCondition(driver, 10,
+                "var target = '" + target.toLowerCase(Locale.ROOT).replace("'", "\\'") + "';" +
+                "var cells = document.querySelectorAll('vaadin-grid vaadin-grid-cell-content');" +
+                "for (var c of cells) {" +
+                "  var r = c.getBoundingClientRect();" +
+                "  if (r.width < 2 || r.height < 2) continue;" + // virtual scroll cache hücrelerini atla
+                "  if ((c.textContent||'').toLowerCase().includes(target)) return true;" +
+                "}" +
+                "return false;");
+            if (!rowVisible) {
+                log.warn("[{}] Filtre sonrası hedef satır görünmedi: {}", role.getDisplayName(), target);
+                return false;
+            }
+
+            // 8. GÖRÜNÜR GİT'e tıkla; onay modalı gelmezse yeniden dene.
+            //    Tamam sonrası grid yeniden render olduğundan ilk tıklama bayat
+            //    elemana denk gelebiliyor — modal gelene kadar en fazla 3 deneme.
+            waitForVaadinStatic(driver); // grid render'ının oturması
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                Boolean gitClicked = (Boolean) js.executeScript(
+                    "var gitBtns = Array.from(document.querySelectorAll('vaadin-button')).filter(function(b) {" +
+                    "  var t = (b.textContent || '').trim();" +
+                    "  if (t !== 'GİT' && t.toUpperCase() !== 'GIT') return false;" +
+                    "  var r = b.getBoundingClientRect();" +
+                    "  return r.width > 2 && r.height > 2;" +
+                    "});" +
+                    "if (gitBtns.length === 0) return false;" +
+                    "gitBtns[0].click();" +
+                    "return true;");
+                if (!Boolean.TRUE.equals(gitClicked)) {
+                    log.warn("[{}] Görünür GİT butonu bulunamadı (deneme {}).", role.getDisplayName(), attempt);
+                    return false;
+                }
+                log.info("[{}] Filtrelenmiş satırda GİT tıklandı (deneme {}).", role.getDisplayName(), attempt);
+
+                // Onay modalı ("... oturum açmak istediğinizden emin misiniz?" / Hayır-Evet) bekle
+                boolean modalVisible = waitForJsCondition(driver, 6,
+                    "var hosts = document.querySelectorAll('vaadin-dialog-overlay');" +
+                    "for (var h of hosts) {" +
+                    "  var r = h.getBoundingClientRect();" +
+                    "  if (r.width < 2 || r.height < 2) continue;" +
+                    "  var t = (h.textContent || '').toLowerCase();" +
+                    "  if (t.indexOf('oturum açmak') >= 0 || t.indexOf('emin misiniz') >= 0) return true;" +
+                    "}" +
+                    "return false;");
+                if (modalVisible) {
+                    return true;
+                }
+                // Bazı akışlarda modal olmayabilir — sayfa zaten değiştiyse başarı say
+                Boolean stillOnAdmin = (Boolean) js.executeScript(
+                    "return (document.body.innerText || '').indexOf('Yeni Admin Ekle') >= 0;");
+                if (!Boolean.TRUE.equals(stillOnAdmin)) {
+                    log.info("[{}] Onay modalı yok ama admin ekranından çıkılmış — geçiş sayılıyor.", role.getDisplayName());
+                    return true;
+                }
+                log.warn("[{}] GİT sonrası onay modalı gelmedi, yeniden denenecek (deneme {}).",
+                        role.getDisplayName(), attempt);
+                waitForVaadinStatic(driver);
+            }
+            return false;
+        } catch (Exception e) {
+            log.warn("[{}] impersonateViaColumnFilter hatası: {}", role.getDisplayName(), e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * GİT sonrası çıkan "... kullanıcısı ile oturum açmak istediğinizden emin misiniz?"
+     * modalında (vaadin-dialog-overlay.confirm-dialog, butonlar: Hayır/Evet) "Evet"e basar.
+     * Modal asenkron açıldığı için ~12 sn poll eder; hiç gelmezse sessizce geçer.
+     */
+    private static void acceptGitConfirmModal(WebDriver driver) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        long deadline = System.currentTimeMillis() + 12_000L;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                Boolean clicked = (Boolean) js.executeScript(
+                    "function visible(el) {" +
+                    "  var r = el.getBoundingClientRect();" +
+                    "  return r.width > 2 && r.height > 2;" +
+                    "}" +
+                    "var hosts = document.querySelectorAll(" +
+                    "  'vaadin-dialog-overlay.confirm-dialog, vaadin-confirm-dialog-overlay, vaadin-dialog-overlay');" +
+                    "for (var h of hosts) {" +
+                    "  if (!visible(h)) continue;" +
+                    "  var txt = (h.textContent || '').toLowerCase();" +
+                    "  var isConfirm = (h.className || '').toString().indexOf('confirm') >= 0" +
+                    "      || txt.indexOf('oturum açmak') >= 0 || txt.indexOf('emin misiniz') >= 0;" +
+                    "  if (!isConfirm) continue;" +
+                    "  var btns = h.querySelectorAll('vaadin-button, button');" +
+                    "  for (var b of btns) {" +
+                    "    var t = (b.textContent || '').trim().toLowerCase();" +
+                    "    if (t === 'evet' || t === 'yes') { b.click(); return true; }" +
+                    "  }" +
+                    "}" +
+                    "return false;");
+                if (Boolean.TRUE.equals(clicked)) {
+                    log.info("GİT onay modalı 'Evet' ile onaylandı.");
+                    waitForVaadinStatic(driver);
+                    return;
+                }
+                Thread.sleep(600);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (Exception e) {
+                log.debug("acceptGitConfirmModal: {}", e.getMessage());
+                return;
+            }
+        }
+        log.info("GİT onay modalı görünmedi — devam ediliyor (modal gelmemiş olabilir).");
+    }
+
+    /** Verilen JS koşulu true dönene kadar poll eder (500 ms aralıkla). */
+    private static boolean waitForJsCondition(WebDriver driver, int timeoutSeconds, String jsReturningBoolean) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                Object r = js.executeScript(jsReturningBoolean);
+                if (Boolean.TRUE.equals(r)) {
+                    return true;
+                }
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            } catch (Exception ignored) {
+            }
+        }
+        return false;
+    }
+
+    /**
+     * vaadin-grid shadow DOM içinde hedef kullanıcıyı arar.
+     * Vaadin grid satırları shadow root içinde olabileceğinden JS ile derin tarama yapar.
+     */
+    private static void impersonateFallbackViaGrid(WebDriver driver, Role role, String targetIdentifier) {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        try {
+            Boolean ok = (Boolean) js.executeScript(
+                "var target = arguments[0].toLowerCase();" +
+                "function findInShadow(root, depth) {" +
+                "  if (!root || depth > 15) return false;" +
+                "  var txt = (root.textContent || '').toLowerCase();" +
+                "  if (txt.includes(target)) {" +
+                "    var btns = root.querySelectorAll('vaadin-button,button,[role=\"button\"]');" +
+                "    for (var b of btns) {" +
+                "      var label = (b.textContent||b.getAttribute('title')||'').toLowerCase();" +
+                "      if (label.includes('giriş')||label.includes('login')) { b.click(); return true; }" +
+                "    }" +
+                "  }" +
+                "  var children = root.children || [];" +
+                "  for (var c of children) {" +
+                "    if (c.shadowRoot && findInShadow(c.shadowRoot, depth+1)) return true;" +
+                "    if (findInShadow(c, depth+1)) return true;" +
+                "  }" +
+                "  return false;" +
+                "}" +
+                "return findInShadow(document.body, 0);",
+                targetIdentifier);
+
+            if (Boolean.TRUE.equals(ok)) {
+                log.info("[{}] Shadow DOM fallback ile kullanıcıya geçildi.", role.getDisplayName());
+                waitForDashboard(driver);
+            } else {
+                log.warn("[{}] Shadow DOM fallback da başarısız — kullanıcı bulunamadı: {}",
+                        role.getDisplayName(), targetIdentifier);
+            }
+        } catch (Exception e) {
+            log.warn("[{}] impersonateFallback hatası: {}", role.getDisplayName(), e.getMessage());
+        }
+    }
+
+    /** BasePageObject dışında kullanılabilen statik nav helper */
+    private static void clickNavItemByTextStatic(WebDriver driver, String keyword) {
+        try {
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            js.executeScript(
+                "var kw = arguments[0].toLowerCase();" +
+                "var sel = 'vaadin-side-nav-item, vaadin-tab, [role=\"menuitem\"]';" +
+                "var els = Array.from(document.querySelectorAll(sel));" +
+                "for (var e of els) {" +
+                "  var txt = (e.textContent||'').toLowerCase().trim();" +
+                "  if (txt.length <= 60 && txt.includes(kw)) { e.click(); return true; }" +
+                "}" +
+                "return false;", keyword);
+        } catch (Exception e) {
+            log.warn("clickNavItemByTextStatic '{}': {}", keyword, e.getMessage());
+        }
+    }
+
+    /** waitForVaadinNavigation statik varyantı */
+    private static void waitForVaadinStatic(WebDriver driver) {
+        try { Thread.sleep(1500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
     }
 
     /**
@@ -130,25 +573,26 @@ public class RoleSessionManager {
      * env=dev2'ye geçilmişse) ConfigReader'dan yeniden okur.
      */
     public static void loginAsDefault(WebDriver driver, Role role) {
-        String[] creds = defaultCredentials.get(role);
-        if (creds == null || creds[0] == null || creds[0].isEmpty()) {
-            // Lazy reload: ConfigReader env değişmiş olabilir (UITestRunner @BeforeSuite)
-            // Locale.ROOT kullan — Türkçe locale'de I→ı dönüşümünü önler (factoring→factorıng hatası)
-            String keyPrefix = role.name().toLowerCase(Locale.ROOT);
-            String email    = ConfigReader.getProperty(keyPrefix + ".email");
-            String password = ConfigReader.getProperty(keyPrefix + ".password");
-            if (email != null && !email.isEmpty()) {
-                creds = new String[]{email, password};
-                defaultCredentials.put(role, creds);
-                log.info("[{}] Kimlik bilgileri ConfigReader'dan yeniden yüklendi: {}", role.getDisplayName(), email);
-            }
+        // Admin credentials (her rol için ortak)
+        String adminEmail    = ConfigReader.getProperty("admin.email");
+        String adminPassword = ConfigReader.getProperty("admin.password");
+
+        if (adminEmail == null || adminEmail.isEmpty()) {
+            throw new IllegalStateException("admin.email properties'te tanımlı değil.");
         }
-        if (creds == null || creds[0] == null || creds[0].isEmpty()) {
-            throw new IllegalStateException(
-                    role.getDisplayName() + " için properties'te kimlik bilgisi tanımlı değil. " +
-                    "dev2.properties'teki " + role.name().toLowerCase(Locale.ROOT) + ".email ve .password alanlarını doldurun.");
+
+        // Role-specific impersonate identifier (şirket adı veya email kısmı)
+        // ADMIN rolü için identifier gerekmez
+        String keyPrefix   = role.name().toLowerCase(Locale.ROOT);
+        String identifier  = ConfigReader.getProperty(keyPrefix + ".impersonate.identifier");
+
+        // Admin rolü için identifier olmayabilir — doğrudan login
+        if (role == Role.ADMIN || identifier == null || identifier.isEmpty()) {
+            loginAs(driver, role, adminEmail, adminPassword);
+        } else {
+            // Diğer roller: admin login → Kullanıcılar → identifier ile geç
+            loginAs(driver, role, identifier, adminPassword);
         }
-        loginAs(driver, role, creds[0], creds[1]);
     }
 
     // ─── Rol Geçişi ───────────────────────────────────────────────────────────
@@ -310,19 +754,46 @@ public class RoleSessionManager {
 
     /**
      * Dashboard yüklenene kadar bekler.
+     *
+     * FaturaLab SPA'da login ve dashboard aynı URL'i (/app/) kullanır.
+     * Bu yüzden sadece URL kontrolü yeterli değil.
+     *
+     * Strateji 1 (kesin): Sayfada "GİRİŞ YAP" butonu kaybolana kadar bekle.
+     *   → Login sayfasında var, dashboard'da yok.
+     * Strateji 2 (fallback): URL /login içermiyorsa + sayfa içeriği 500 karakterden uzunsa.
+     * Strateji 3 (fallback): 60 saniye geçtiyse devam et.
      */
     private static void waitForDashboard(WebDriver driver) {
         org.openqa.selenium.support.ui.WebDriverWait wait =
-                new org.openqa.selenium.support.ui.WebDriverWait(driver, java.time.Duration.ofSeconds(30));
+                new org.openqa.selenium.support.ui.WebDriverWait(driver, java.time.Duration.ofSeconds(60));
         try {
             wait.until(d -> {
-                String url = d.getCurrentUrl();
-                // Login sayfasından çıktıysak başarılı
-                return !url.contains("/login") && !url.contains("/error");
+                try {
+                    // Sayfa body metnini JS ile al
+                    Object bodyText = ((JavascriptExecutor) d).executeScript(
+                            "return document.body ? (document.body.innerText || document.body.textContent || '') : '';");
+                    String text = bodyText != null ? bodyText.toString() : "";
+
+                    // "GİRİŞ YAP" veya "GİRİŞ" butonu varsa hâlâ login ekranındayız
+                    boolean onLoginPage = text.contains("GİRİŞ YAP")
+                            || text.contains("SSO İLE GİRİŞ")
+                            || text.contains("Şifremi Unuttum");
+
+                    // Dashboard'a geçildiyse sidebar veya kullanıcı menüsü görünür
+                    boolean dashboardLoaded = !onLoginPage && text.length() > 300;
+
+                    if (onLoginPage) {
+                        log.debug("waitForDashboard: hâlâ login ekranı — bekleniyor...");
+                    }
+                    return dashboardLoaded;
+                } catch (Exception ex) {
+                    return false;
+                }
             });
-            Thread.sleep(1000); // Vaadin hydration için kısa bekleme
+            log.info("waitForDashboard: Dashboard yüklendi, Vaadin hydration için 2 sn bekleniyor.");
+            Thread.sleep(2000); // Vaadin component tree için ek bekleme
         } catch (Exception e) {
-            log.warn("Dashboard bekleme timeout: {}", e.getMessage());
+            log.warn("Dashboard bekleme timeout — devam ediliyor: {}", e.getMessage());
         }
     }
 

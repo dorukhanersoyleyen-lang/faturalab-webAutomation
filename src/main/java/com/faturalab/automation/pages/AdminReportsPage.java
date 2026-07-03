@@ -62,6 +62,63 @@ public class AdminReportsPage extends BasePageObject {
         acceptVaadinConfirmDialogIfPresent();
     }
 
+    /** Raporlar altındaki "Günlük İşlemler" sayfasına gider (TZF işlemi doğrulaması). */
+    public void navigateToGunlukIslemler() {
+        try {
+            Boolean clicked = (Boolean) ((JavascriptExecutor) driver).executeScript(
+                    "var sel = 'vaadin-button, button, a, vaadin-item, vaadin-side-nav-item, [role=\"button\"], .menu-button';" +
+                    "var els = document.querySelectorAll(sel);" +
+                    "for (var el of els) {" +
+                    "  var t = (el.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "  if (t.length < 40 && (t.includes('günlük işlem') || t.includes('gunluk islem'))) {" +
+                    "    el.click(); return true;" +
+                    "  }" +
+                    "}" +
+                    "return false;");
+            if (Boolean.TRUE.equals(clicked)) {
+                waitForVaadinNavigation();
+                return;
+            }
+        } catch (Exception e) {
+            log.warn("Günlük işlemler (JS): {}", e.getMessage());
+        }
+        if (!clickNavItemByText("günlük işlem")) {
+            clickNavItemByText("gunluk");
+        }
+        waitForVaadinNavigation();
+    }
+
+    /**
+     * Grid hücrelerinde verilen metni arar (bordro no / tedarikçi adı doğrulaması).
+     * Grid'de yoksa sayfa gövdesine de bakar.
+     */
+    public boolean isTextVisibleInGrid(String needle) {
+        try {
+            new WebDriverWait(driver, Duration.ofSeconds(20))
+                    .until(ExpectedConditions.visibilityOfElementLocated(GRID));
+            Thread.sleep(1500); // Vaadin grid asenkron satır render'ı
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("isTextVisibleInGrid grid beklemesi: {}", e.getMessage());
+        }
+        try {
+            Boolean found = (Boolean) ((JavascriptExecutor) driver).executeScript(
+                    "var needle = arguments[0].toLowerCase();" +
+                    "var cells = document.querySelectorAll('vaadin-grid-cell-content');" +
+                    "for (var c of cells) {" +
+                    "  if ((c.textContent || '').toLowerCase().includes(needle)) return true;" +
+                    "}" +
+                    "return (document.body.innerText || '').toLowerCase().includes(needle);",
+                    needle);
+            log.info("Günlük işlemler grid araması '{}': {}", needle, found);
+            return Boolean.TRUE.equals(found);
+        } catch (Exception e) {
+            log.warn("isTextVisibleInGrid: {}", e.getMessage());
+            return false;
+        }
+    }
+
     public void applyTarihFilter(String baslangic, String bitis) {
         try {
             List<WebElement> inputs = driver.findElements(By.cssSelector(
