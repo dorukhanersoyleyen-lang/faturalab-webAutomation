@@ -22,6 +22,13 @@ public final class VaadinGridFilterHelper {
 
     private static final Logger log = LogManager.getLogger(VaadinGridFilterHelper.class);
 
+    /** JS'e enjekte edilen Türkçe→ASCII katlama fonksiyonu (config ASCII ↔ ekran Türkçe eşleşmesi). */
+    private static final String TR_FOLD_JS =
+            "function fold(s){return (s||'')" +
+            ".replace(/[İıI]/g,'i').replace(/[şŞ]/g,'s').replace(/[ğĞ]/g,'g')" +
+            ".replace(/[üÜ]/g,'u').replace(/[öÖ]/g,'o').replace(/[çÇ]/g,'c')" +
+            ".replace(/[âÂ]/g,'a').toLowerCase().replace(/\\s+/g,' ').trim();}";
+
     private VaadinGridFilterHelper() {
     }
 
@@ -95,12 +102,15 @@ public final class VaadinGridFilterHelper {
                 sleep(1500);
 
                 Object checked = js.executeScript(
-                    "var target = arguments[0].toLowerCase();" +
+                    TR_FOLD_JS +
+                    "var target = fold(arguments[0]);" +
                     "var dlg = document.querySelector('vaadin-dialog-overlay.table-filter-dialog');" +
                     "var cells = Array.from(dlg.querySelectorAll('vaadin-grid.check-table vaadin-grid-cell-content'));" +
                     "var idx = cells.findIndex(function(c) {" +
-                    "  var t = (c.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();" +
-                    "  return t.length > 0 && t.indexOf('münü seç') < 0 && t.includes(target);" +
+                    "  var raw = (c.textContent||'');" +
+                    "  if (raw.indexOf('münü seç') >= 0) return false;" +
+                    "  var t = fold(raw);" +
+                    "  return t.length > 0 && t.includes(target);" +
                     "});" +
                     "if (idx < 1) return null;" +
                     "var cb = cells[idx - 1].querySelector('vaadin-checkbox, input[type=checkbox]');" +
@@ -128,15 +138,16 @@ public final class VaadinGridFilterHelper {
                 return false;
             }
 
-            // 6. İlk değerin görünür satırda belirmesini bekle
-            String first = values.get(0).toLowerCase(java.util.Locale.ROOT).replace("'", "\\'");
+            // 6. İlk değerin görünür satırda belirmesini bekle (ASCII-fold)
+            String first = values.get(0).replace("'", "\\'");
             boolean visible = waitForJs(driver, 12,
-                "var target = '" + first + "';" +
+                TR_FOLD_JS +
+                "var target = fold('" + first + "');" +
                 "var cells = document.querySelectorAll('vaadin-grid vaadin-grid-cell-content');" +
                 "for (var c of cells) {" +
                 "  var r = c.getBoundingClientRect();" +
                 "  if (r.width < 2 || r.height < 2) continue;" +
-                "  if ((c.textContent||'').toLowerCase().includes(target)) return true;" +
+                "  if (fold(c.textContent||'').includes(target)) return true;" +
                 "}" +
                 "return false;");
             log.info("Filtre uygulandı ({}), ilk değer görünür: {}", columnKeyword, visible);

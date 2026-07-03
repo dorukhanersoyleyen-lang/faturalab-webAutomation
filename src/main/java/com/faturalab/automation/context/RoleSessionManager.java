@@ -35,6 +35,17 @@ public class RoleSessionManager {
 
     private static final Logger log = LogManager.getLogger(RoleSessionManager.class);
 
+    /**
+     * JS'e enjekte edilen Türkçe→ASCII katlama (fold) fonksiyonu.
+     * Config'te ASCII yazılan hedef ("EFG Gida") ile ekrandaki Türkçe değeri ("EFG Gıda A.Ş.")
+     * eşleştirmek için kullanılır. Her filtre/eşleşme JS bloğunun başına eklenir.
+     */
+    private static final String TR_FOLD_JS =
+            "function fold(s){return (s||'')" +
+            ".replace(/[İıI]/g,'i').replace(/[şŞ]/g,'s').replace(/[ğĞ]/g,'g')" +
+            ".replace(/[üÜ]/g,'u').replace(/[öÖ]/g,'o').replace(/[çÇ]/g,'c')" +
+            ".replace(/[âÂ]/g,'a').toLowerCase().replace(/\\s+/g,' ').trim();}";
+
     // ─── Rol Tanımları ────────────────────────────────────────────────────────
 
     public enum Role {
@@ -313,9 +324,12 @@ public class RoleSessionManager {
             log.info("[{}] Tümünü seç: {}", role.getDisplayName(), unselectAll);
             waitForVaadinStatic(driver);
 
-            // 4. "Ara" kutusuna hedefi yaz
+            // 4. "Ara" kutusuna hedefin ilk kelimesini yaz (ASCII-güvenli daraltma).
+            //    Tam string yerine ilk kelime: uygulamanın kendi araması Türkçe-duyarlı
+            //    olabilir, ilk kelime genelde ASCII (EFG, Test, ALBC) ve listeyi daraltmaya yeter.
             Boolean typed = (Boolean) js.executeScript(
                 "var target = arguments[0];" +
+                "var firstWord = target.split(/\\s+/)[0] || target;" +
                 "var dlg = document.querySelector('vaadin-dialog-overlay.table-filter-dialog');" +
                 "var inp = dlg.querySelector('vaadin-text-field[label=\"Ara\"] input');" +
                 "if (!inp) {" +
@@ -324,7 +338,7 @@ public class RoleSessionManager {
                 "}" +
                 "if (!inp) return false;" +
                 "inp.focus();" +
-                "inp.value = target;" +
+                "inp.value = firstWord;" +
                 "inp.dispatchEvent(new Event('input', {bubbles: true}));" +
                 "inp.dispatchEvent(new Event('change', {bubbles: true}));" +
                 "return true;", target);
@@ -332,17 +346,21 @@ public class RoleSessionManager {
                 log.warn("[{}] Filtre 'Ara' kutusu bulunamadı.", role.getDisplayName());
                 return false;
             }
-            log.info("[{}] Filtre aramasına yazıldı: {}", role.getDisplayName(), target);
+            log.info("[{}] Filtre aramasına yazıldı (ilk kelime): {}", role.getDisplayName(), target);
             waitForVaadinStatic(driver);
 
-            // 5. Hedef firmanın checkbox'ını işaretle (checkbox = ad hücresinin önceki hücresi)
+            // 5. Hedef firmanın checkbox'ını işaretle (checkbox = ad hücresinin önceki hücresi).
+            //    Eşleşme Türkçe-DUYARSIZ (ASCII-fold): config'te "EFG Gida" ↔ ekranda "EFG Gıda".
             Object checked = js.executeScript(
-                "var target = arguments[0].toLowerCase();" +
+                TR_FOLD_JS +
+                "var target = fold(arguments[0]);" +
                 "var dlg = document.querySelector('vaadin-dialog-overlay.table-filter-dialog');" +
                 "var cells = Array.from(dlg.querySelectorAll('vaadin-grid.check-table vaadin-grid-cell-content'));" +
                 "var idx = cells.findIndex(function(c) {" +
-                "  var t = (c.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();" +
-                "  return t.length > 0 && t.indexOf('münü seç') < 0 && t.includes(target);" +
+                "  var raw = (c.textContent||'');" +
+                "  if (raw.indexOf('münü seç') >= 0) return false;" +
+                "  var t = fold(raw);" +
+                "  return t.length > 0 && t.includes(target);" +
                 "});" +
                 "if (idx < 1) return null;" +
                 "var cb = cells[idx - 1].querySelector('vaadin-checkbox, input[type=checkbox]');" +
@@ -369,14 +387,15 @@ public class RoleSessionManager {
                 return false;
             }
 
-            // 7. Grid'in filtrelenmesini bekle: hedef satır GÖRÜNÜR olana kadar poll
+            // 7. Grid'in filtrelenmesini bekle: hedef satır GÖRÜNÜR olana kadar poll (ASCII-fold)
             boolean rowVisible = waitForJsCondition(driver, 10,
-                "var target = '" + target.toLowerCase(Locale.ROOT).replace("'", "\\'") + "';" +
+                TR_FOLD_JS +
+                "var target = fold('" + target.replace("'", "\\'") + "');" +
                 "var cells = document.querySelectorAll('vaadin-grid vaadin-grid-cell-content');" +
                 "for (var c of cells) {" +
                 "  var r = c.getBoundingClientRect();" +
                 "  if (r.width < 2 || r.height < 2) continue;" + // virtual scroll cache hücrelerini atla
-                "  if ((c.textContent||'').toLowerCase().includes(target)) return true;" +
+                "  if (fold(c.textContent||'').includes(target)) return true;" +
                 "}" +
                 "return false;");
             if (!rowVisible) {
