@@ -68,11 +68,17 @@ public class UATTestRunner extends AbstractTestNGCucumberTests {
         return super.scenarios();
     }
 
-    @AfterSuite
+    // alwaysRun=true: senaryolar fail olsa / bir configuration hatası olsa bile rapor
+    // üretilip açılsın. Kronik "fail olunca rapor açılmıyor/bayat kalıyor" sorununa karşı.
+    @AfterSuite(alwaysRun = true)
     public void printReport() {
         File json = new File("target/cucumber-reports/uat/cucumber.json");
         File outDir = new File("target/cucumber-reports/uat/advanced-reports");
-        CucumberExtendedReportGenerator.generate(json, outDir, "Faturalab UAT Automation");
+        try {
+            CucumberExtendedReportGenerator.generate(json, outDir, "Faturalab UAT Automation");
+        } catch (Throwable t) {
+            System.err.println("[UATTestRunner] Extended rapor üretimi hata verdi: " + t.getMessage());
+        }
         try {
             Thread.sleep(1500);
         } catch (InterruptedException e) {
@@ -81,7 +87,11 @@ public class UATTestRunner extends AbstractTestNGCucumberTests {
         boolean suiteListener = Boolean.parseBoolean(
                 System.getProperty("faturalab.report.listener.active", "false"));
         if (!suiteListener && Boolean.parseBoolean(System.getProperty("faturalab.open.reports", "true"))) {
-            ReportOpener.main(new String[]{});
+            try {
+                ReportOpener.main(new String[]{});
+            } catch (Throwable t) {
+                System.err.println("[UATTestRunner] Rapor açma hata verdi: " + t.getMessage());
+            }
         }
         System.out.println("[UATTestRunner] Extended report: target/cucumber-reports/uat/advanced-reports/"
                 + CucumberExtendedReportGenerator.OVERVIEW_FEATURES_HTML);

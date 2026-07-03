@@ -6,6 +6,7 @@ import net.masterthought.cucumber.ReportBuilder;
 import java.io.File;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -26,6 +27,13 @@ public final class CucumberExtendedReportGenerator {
      * @return overview HTML oluştuysa true
      */
     public static boolean generate(File jsonFile, File outputDirectory, String projectName) {
+        // HER KOŞULDA önce eski çıktıyı sil — JSON boş/eksik olsa bile. Aksi halde
+        // ReportOpener diskte kalan BAYAT extended raporu "güncelmiş gibi" açıyordu
+        // (kronik sorunun asıl mekanizması). Eski rapor silinince opener, o suite'in
+        // güncel cucumber index.html'ine düşer — yanlış veri göstermektense hiç göstermez.
+        File htmlDir = new File(outputDirectory, "cucumber-html-reports");
+        deleteRecursively(htmlDir);
+
         if (jsonFile == null || !jsonFile.exists() || jsonFile.length() == 0) {
             System.out.println("[ExtendedReport] JSON yok veya boş: " + jsonFile);
             return false;
@@ -33,13 +41,15 @@ public final class CucumberExtendedReportGenerator {
         try {
             String content = Files.readString(jsonFile.toPath());
             if (content.trim().isEmpty() || content.equals("[]")) {
-                System.out.println("[ExtendedReport] JSON içeriği boş veya [].");
+                System.out.println("[ExtendedReport] JSON içeriği boş veya [] — eski rapor temizlendi, üretim atlandı.");
                 return false;
             }
         } catch (Exception e) {
             System.err.println("[ExtendedReport] JSON okunamadı: " + e.getMessage());
             return false;
         }
+
+        long startedAt = System.currentTimeMillis();
         try {
             outputDirectory.mkdirs();
             List<String> jsonFiles = new ArrayList<>();
@@ -54,17 +64,33 @@ public final class CucumberExtendedReportGenerator {
             new ReportBuilder(jsonFiles, configuration).generateReports();
 
             File overview = overviewHtmlFile(outputDirectory);
-            boolean ok = overview.exists();
-            if (ok) {
-                System.out.println("[ExtendedReport] Oluşturuldu: " + overview.getAbsolutePath());
-            } else {
-                System.err.println("[ExtendedReport] Üretim tamamlandı fakat overview bulunamadı: " + overview);
+            // Sadece "var mı" değil, "BU çağrıda mı yazıldı" doğrula (tazelik güvencesi).
+            boolean fresh = overview.exists() && overview.lastModified() >= startedAt - 2000;
+            if (fresh) {
+                System.out.println("[ExtendedReport] Oluşturuldu (güncel): " + overview.getAbsolutePath());
+                return true;
             }
-            return ok;
+            System.err.println("[ExtendedReport] UYARI: overview bu koşumda güncellenemedi -> "
+                    + overview + " (exists=" + overview.exists() + ")");
+            return false;
         } catch (Exception e) {
             System.err.println("[ExtendedReport] Hata: " + e.getMessage());
             e.printStackTrace();
             return false;
+        }
+    }
+
+    /** Bir dizini (varsa) içeriğiyle birlikte siler; stale rapor kalıntısını önler. */
+    private static void deleteRecursively(File dir) {
+        if (dir == null || !dir.exists()) {
+            return;
+        }
+        try (java.util.stream.Stream<java.nio.file.Path> walk = Files.walk(dir.toPath())) {
+            walk.sorted(Comparator.reverseOrder())
+                .map(java.nio.file.Path::toFile)
+                .forEach(File::delete);
+        } catch (Exception e) {
+            System.err.println("[ExtendedReport] Eski rapor temizlenemedi (" + dir + "): " + e.getMessage());
         }
     }
 
