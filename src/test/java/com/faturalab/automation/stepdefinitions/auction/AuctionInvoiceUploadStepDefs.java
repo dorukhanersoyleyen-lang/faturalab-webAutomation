@@ -108,49 +108,43 @@ public class AuctionInvoiceUploadStepDefs {
         
         // Create auction invoices from DataTable
         List<AuctionInvoice> auctionInvoices = new ArrayList<>();
-        
-        // Build exactly 3 invoices as per successful cURL (unique fields kept external)
-        // Invoice 1
-        AuctionInvoice inv1 = new AuctionInvoice("0030000049", "1083053674", 75000.0, "PAPER");
-        inv1.setRequestedAmount(71000);
-        inv1.setTaxExclusiveAmount(72000);
-        inv1.setCurrencyType("TL");
-        inv1.setDueDate(InvoiceTestDataGenerator.getFutureWorkingDate(33));
-        inv1.setExtraInvoiceDueDay(0);
-        inv1.setInvoiceDate(InvoiceTestDataGenerator.getCurrentDate());
-        inv1.setInvoiceETTN("");
-        inv1.setInvoiceTypeCode("SATIS");
-        inv1.setOrderNo("1002000049");
-        inv1.setItemNo("20004128");
-        auctionInvoices.add(inv1);
-        
-        // Invoice 2
-        AuctionInvoice inv2 = new AuctionInvoice("0000700081", "1083053674", 30000.0, "PAPER");
-        inv2.setRequestedAmount(27000);
-        inv2.setTaxExclusiveAmount(28000);
-        inv2.setCurrencyType("TL");
-        inv2.setDueDate(InvoiceTestDataGenerator.getFutureWorkingDate(48));
-        inv2.setExtraInvoiceDueDay(0);
-        inv2.setInvoiceDate(InvoiceTestDataGenerator.getCurrentDate());
-        inv2.setInvoiceETTN("");
-        inv2.setInvoiceTypeCode("SATIS");
-        inv2.setOrderNo("1000400081");
-        inv2.setItemNo("20100131");
-        auctionInvoices.add(inv2);
-        
-        // Invoice 3
-        AuctionInvoice inv3 = new AuctionInvoice("0007000082", "1083053674", 20000.0, "PAPER");
-        inv3.setRequestedAmount(17000);
-        inv3.setTaxExclusiveAmount(18000);
-        inv3.setCurrencyType("TL");
-        inv3.setDueDate(InvoiceTestDataGenerator.getFutureWorkingDate(18));
-        inv3.setExtraInvoiceDueDay(0);
-        inv3.setInvoiceDate(InvoiceTestDataGenerator.getCurrentDate());
-        inv3.setInvoiceETTN("");
-        inv3.setInvoiceTypeCode("SATIS");
-        inv3.setOrderNo("1004000082");
-        inv3.setItemNo("20010132");
-        auctionInvoices.add(inv3);
+
+        // Statik package/order/item değerleri her koşumda AYNI faturayı işaret ediyordu;
+        // sistemde biriken atamalar yüzünden API kronik DISCOUNTED_INVOICE_REQUESTED_AMOUNT
+        // dönüyordu. Numaralar artık koşum başına benzersiz üretilir.
+        long runBase = System.currentTimeMillis() % 1_000_000_000L;
+
+        // Tedarikçi: feature data table'ından (otomasyon tedarikçisi 4050604050),
+        // yoksa config'ten (integration.supplier.taxno).
+        String supplierTaxNo = null;
+        if (!invoiceData.isEmpty()) {
+            supplierTaxNo = invoiceData.get(0).get("supplierTaxNo");
+        }
+        if (supplierTaxNo == null || supplierTaxNo.trim().isEmpty()) {
+            supplierTaxNo = com.faturalab.automation.config.ConfigReader
+                    .getProperty("integration.supplier.taxno", "4050604050");
+        }
+        log.info("Auction faturaları için tedarikçi VKN: {} (runBase={})", supplierTaxNo, runBase);
+
+        double[] amounts    = {75000.0, 30000.0, 20000.0};
+        int[]    requested  = {71000, 27000, 17000};
+        int[]    taxExcl    = {72000, 28000, 18000};
+        int[]    dueDays    = {33, 48, 18};
+        for (int i = 0; i < 3; i++) {
+            String packageNo = String.format("%010d", runBase + i);
+            AuctionInvoice inv = new AuctionInvoice(packageNo, supplierTaxNo, amounts[i], "PAPER");
+            inv.setRequestedAmount(requested[i]);
+            inv.setTaxExclusiveAmount(taxExcl[i]);
+            inv.setCurrencyType("TL");
+            inv.setDueDate(InvoiceTestDataGenerator.getFutureWorkingDate(dueDays[i]));
+            inv.setExtraInvoiceDueDay(0);
+            inv.setInvoiceDate(InvoiceTestDataGenerator.getCurrentDate());
+            inv.setInvoiceETTN("");
+            inv.setInvoiceTypeCode("SATIS");
+            inv.setOrderNo(String.format("%010d", runBase + 100 + i));
+            inv.setItemNo(String.format("%08d", (runBase + i) % 100_000_000L));
+            auctionInvoices.add(inv);
+        }
         
         // Create upload request
         ensureAPIInitialized(); // Ensure API is available before using it

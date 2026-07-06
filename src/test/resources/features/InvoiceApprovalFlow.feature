@@ -15,7 +15,7 @@
     Ve admin kullanıcısı ile kimlik doğrulaması yapıldı
     Ve sistemde "PENDING_APPROVAL" durumunda bir fatura mevcut
       | invoiceNo         | supplierTaxNo | invoiceAmount | invoiceType |
-      | ADMIN-APPR-001    | 1234567893    | 3000          | E_FATURA    |
+      | ADMIN-APPR-001    | 4050604050    | 3000          | E_FATURA    |
     Eğer ki admin faturayı onaylarsa
     O zaman fatura durumu "APPROVED" olmalı
     Ve tedarikçi faturayı "APPROVED" olarak görmeli

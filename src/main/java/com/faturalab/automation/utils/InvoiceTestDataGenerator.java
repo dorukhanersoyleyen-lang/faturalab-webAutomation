@@ -12,7 +12,8 @@ public class InvoiceTestDataGenerator {
     
     private static final String[] INVOICE_TYPES = {"E_FATURA", "E_ARSIV", "PAPER"};
     private static final String[] CURRENCIES = {"TL", "USD", "EUR"};
-    private static final String[] SUPPLIER_TAX_NUMBERS = {
+    /** Config'te tedarikçi VKN tanımlı değilse kullanılacak son çare havuz (eski davranış). */
+    private static final String[] FALLBACK_SUPPLIER_TAX_NUMBERS = {
         "1234567890", "9876543210", "5555555555", "1111111111", "1083053674"
     };
     
@@ -221,9 +222,28 @@ public class InvoiceTestDataGenerator {
         return INVOICE_TYPES[random.nextInt(INVOICE_TYPES.length)];
     }
     
+    /**
+     * Üretilen fatura gövdelerindeki tedarikçi VKN'si.
+     * Öncelik: config {@code integration.supplier.taxno} / {@code test.matched.company.taxno}
+     * (otomasyon tedarikçisi — ALBC ile eşleşik "Test Otomasyon Sadece Tedarikçi", VKN 4050604050).
+     * Config'te yoksa eski rastgele havuza düşer.
+     */
     private static String getRandomSupplierTaxNo() {
+        try {
+            String configured = com.faturalab.automation.config.ConfigReader
+                    .getProperty("integration.supplier.taxno", "").trim();
+            if (configured.isEmpty()) {
+                configured = com.faturalab.automation.config.ConfigReader
+                        .getProperty("test.matched.company.taxno", "").trim();
+            }
+            if (!configured.isEmpty()) {
+                return configured;
+            }
+        } catch (Throwable ignored) {
+            // ConfigReader yüklenemezse (ör. birim testi bağlamı) fallback'e düş
+        }
         Random random = new Random();
-        return SUPPLIER_TAX_NUMBERS[random.nextInt(SUPPLIER_TAX_NUMBERS.length)];
+        return FALLBACK_SUPPLIER_TAX_NUMBERS[random.nextInt(FALLBACK_SUPPLIER_TAX_NUMBERS.length)];
     }
     
     private static int getRandomAmount() {

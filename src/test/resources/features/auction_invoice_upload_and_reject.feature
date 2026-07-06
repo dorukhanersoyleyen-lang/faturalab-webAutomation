@@ -10,7 +10,7 @@
     Ve kullanıcı kimlik doğrulaması yapıldı
     Eğer ki geçerli auction fatura bilgileri ile fatura yüklerse
       | invoiceNo        | supplierTaxNo | invoiceAmount | invoiceType | auctionType |
-      | ALBC-AUC-2025001 | 1234567893    | 2500          | E_FATURA    | STANDARD    |
+      | ALBC-AUC-2025001 | 4050604050    | 2500          | E_FATURA    | STANDARD    |
     O zaman auction fatura başarıyla yüklenmiş olmalı
     Ve auction fatura status'ü kontrol edilmeli
     Ve auction fatura status'ü "DRAFT" olmalı
@@ -34,7 +34,7 @@
     Ve kullanıcı kimlik doğrulaması yapıldı
     Eğer ki geçersiz auction tip ile fatura yüklerse
       | invoiceNo        | supplierTaxNo | invoiceAmount | invoiceType | auctionType |
-      | ALBC-AUC-INV001  | 1234567893    | 1500          | E_FATURA    | INVALID_TYPE |
+      | ALBC-AUC-INV001  | 4050604050    | 1500          | E_FATURA    | INVALID_TYPE |
     O zaman hata mesajı alınmalı
     Ve auction fatura yüklenmemiş olmalı
 
@@ -44,6 +44,6 @@
     Ve kullanıcı kimlik doğrulaması yapıldı
     Eğer ki zaten var olan invoice numarası ile auction fatura yüklerse
       | invoiceNo        | supplierTaxNo | invoiceAmount | invoiceType | auctionType |
-      | ALBC-AUC-DUP001  | 1234567893    | 3000          | E_FATURA    | STANDARD    |
+      | ALBC-AUC-DUP001  | 4050604050    | 3000          | E_FATURA    | STANDARD    |
     O zaman duplicate invoice hatası alınmalı
     Ve auction fatura yüklenmemiş olmalı 

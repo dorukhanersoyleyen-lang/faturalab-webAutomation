@@ -15,7 +15,7 @@
   Senaryo: TC-COMP-01-001 - Geçerli XML fatura yükleme
     Eğer ki tedarikçi geçerli XML fatura bilgileri ile fatura yüklerse
       | invoiceNo          | supplierTaxNo | invoiceAmount | invoiceType |
-      | COMP-XML-001       | 1234567893    | 5000          | E_FATURA    |
+      | COMP-XML-001       | 4050604050    | 5000          | E_FATURA    |
     O zaman fatura başarıyla yüklenmiş olmalı
     Ve fatura durumu "PENDING_APPROVAL" olmalı
     Ve fatura listesinde faturası görünmeli
@@ -48,7 +48,7 @@
     Diyelim ki support rolündeki kullanıcı ile kimlik doğrulaması yapıldı
     Eğer ki support kullanıcı fatura kaydetmeye çalışırsa
       | invoiceNo          | supplierTaxNo | invoiceAmount | invoiceType |
-      | COMP-SUPPORT-001   | 1234567893    | 1000          | E_FATURA    |
+      | COMP-SUPPORT-001   | 4050604050    | 1000          | E_FATURA    |
     O zaman "Support kullanıcıları fatura kaydedemez" uyarısı alınmalı
     Ve fatura yüklenmemiş olmalı
 
@@ -90,7 +90,7 @@
   Senaryo: TC-COMP-01-010 - Tedarikçi bazlı yükleme talebi oluşturma
     Eğer ki tedarikçi alıcıya yükleme talebi gönderirse
       | buyerTaxNo  | requestedAmount | currency |
-      | 1234567893  | 10000           | TRY      |
+      | 4050604050  | 10000           | TRY      |
     O zaman yükleme talebi başarıyla oluşturulmuş olmalı
     Ve talep "REQUESTED" durumunda listelenmeli
 
@@ -99,7 +99,7 @@
   Senaryo: TC-COMP-01-011 - Yüklenen faturanın listede görünmesi ve detay kontrolü
     Eğer ki tedarikçi geçerli XML fatura bilgileri ile fatura yüklerse
       | invoiceNo          | supplierTaxNo | invoiceAmount | invoiceType |
-      | COMP-DETAIL-001    | 1234567893    | 7500          | E_FATURA    |
+      | COMP-DETAIL-001    | 4050604050    | 7500          | E_FATURA    |
     O zaman fatura başarıyla yüklenmiş olmalı
     Ve fatura listesinde "PENDING_APPROVAL" durumunda görünmeli
     Ve fatura detayında fatura no doğru görünmeli

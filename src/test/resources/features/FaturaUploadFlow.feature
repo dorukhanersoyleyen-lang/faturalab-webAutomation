@@ -10,7 +10,7 @@
     Ve kullanıcı kimlik doğrulaması yapıldı
     Eğer ki geçerli fatura bilgileri ile fatura yüklerse
       | invoiceNo        | supplierTaxNo | invoiceAmount | invoiceType |
-      | ALBC-2025-000001 | 1234567893    | 1000          | E_FATURA    |
+      | ALBC-2025-000001 | 4050604050    | 1000          | E_FATURA    |
     O zaman fatura başarıyla yüklenmiş olmalı
     Ve fatura geçmişinde faturası görünmeli
     Eğer ki faturası silinirse
@@ -31,7 +31,7 @@
     Ve kullanıcı kimlik doğrulaması yapıldı
     Eğer ki geçersiz miktarla fatura yüklerse
       | invoiceNo        | supplierTaxNo | invoiceAmount | invoiceType |
-      | ALBC-INVALID-001 | 1234567893    | 0             | E_FATURA    |
+      | ALBC-INVALID-001 | 4050604050    | 0             | E_FATURA    |
     O zaman hata mesajı alınmalı
     Ve fatura yüklenmemiş olmalı
 
@@ -41,5 +41,5 @@
     Ve kullanıcı kimlik doğrulaması yapıldı
     Eğer ki E-Arşiv fatura bilgileri ile fatura yüklerse
       | invoiceNo      | supplierTaxNo | invoiceAmount | invoiceType |
-      | ALBC-ARSIV-001 | 1234567893    | 1000          | E_ARSIV     |
+      | ALBC-ARSIV-001 | 4050604050    | 1000          | E_ARSIV     |
     O zaman fatura başarıyla yüklenmiş olmalı
