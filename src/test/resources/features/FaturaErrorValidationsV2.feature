@@ -117,3 +117,78 @@
     Ve hata kodu 'EXIST_INVOICE' olmalı
     Ve hata mesajı 'Invoice available in the system' içermeli
     Ve fatura yüklenmemiş olmalı
+
+  # ─── Vade / Ek Vade Tarihi Validasyonları ──────────────────────────────────
+  # Beklenen kod + mesajlar KAYNAK KODDAN alındı (web-application, origin/vaadin-24):
+  #   api/integration/version/v0/Api.java (uploadInvoice) + api/integration/common/ErrorType.java
+  #   INVOICE_EXPIRED                     -> Api.227 (dinamik): "...Technical Error Detail: The due date
+  #                                          is invalid. (It should be at least {N} days.)" — ALBC buyer
+  #                                          daycountbeforeduedate=1 (DB doğrulandı)
+  #   INVALID_DUE_DATE                    -> ErrorType.44: "The due date is invalid"
+  #                                          (appsettings.MAX_DUE_DAY_LIMIT=1800 aşımı)
+  #   INVALID_ADDITIONAL_DUE_DATE_AFTER   -> ErrorType.175: "The additional due date cannot be earlier than the due date."
+  #   INVALID_DUE_DATE_HOLIDAY            -> ErrorType.174: "The due date falls on a holiday. Please check."
+  #   INVALID_ADDITIONAL_DUE_DATE_HOLIDAY -> ErrorType.176: "The additional due date falls on a holiday. Please check."
+  # Tarih token'ları stepdef'te çözülür: TODAY±N, HOLIDAY (bir sonraki 29 Ekim), YOK (alan gönderilmez).
+  # NOT: API, additionalDueDate DOLU ise tatil kontrolünü YALNIZCA ek vadeye uygular; dueDate-tatil
+  # senaryosunda bu yüzden additionalDueDate=YOK zorunludur.
+
+  @vade @duedate @buyer
+  Senaryo: V2 - Geçmiş vade tarihi - INVOICE_EXPIRED
+    Eğer ki aşağıdaki alanlarla fatura yüklenmeye çalışılırsa
+      | invoiceNo | supplierTaxNo | invoiceAmount | invoiceType | dueDate |
+      |           | 4050604050    | 1000          | E_FATURA    | TODAY-5 |
+    O zaman hata mesajı alınmalı
+    Ve hata kodu 'INVOICE_EXPIRED' olmalı
+    Ve hata mesajı 'The due date is invalid. (It should be at least 1 days.)' içermeli
+    Ve fatura yüklenmemiş olmalı
+
+  @vade @duedate @buyer
+  Senaryo: V2 - Bugün vadeli fatura (sınır değer) - INVOICE_EXPIRED
+    Eğer ki aşağıdaki alanlarla fatura yüklenmeye çalışılırsa
+      | invoiceNo | supplierTaxNo | invoiceAmount | invoiceType | dueDate |
+      |           | 4050604050    | 1000          | E_FATURA    | TODAY   |
+    O zaman hata mesajı alınmalı
+    Ve hata kodu 'INVOICE_EXPIRED' olmalı
+    Ve hata mesajı 'The due date is invalid. (It should be at least 1 days.)' içermeli
+    Ve fatura yüklenmemiş olmalı
+
+  @vade @duedate @buyer
+  Senaryo: V2 - Vade tarihi maksimum limiti aşıyor (1800 gün) - INVALID_DUE_DATE
+    Eğer ki aşağıdaki alanlarla fatura yüklenmeye çalışılırsa
+      | invoiceNo | supplierTaxNo | invoiceAmount | invoiceType | dueDate    |
+      |           | 4050604050    | 1000          | E_FATURA    | TODAY+2000 |
+    O zaman hata mesajı alınmalı
+    Ve hata kodu 'INVALID_DUE_DATE' olmalı
+    Ve hata mesajı 'The due date is invalid' içermeli
+    Ve fatura yüklenmemiş olmalı
+
+  @vade @additional-duedate @buyer
+  Senaryo: V2 - Ek vade tarihi vade tarihinden önce - INVALID_ADDITIONAL_DUE_DATE_AFTER
+    Eğer ki aşağıdaki alanlarla fatura yüklenmeye çalışılırsa
+      | invoiceNo | supplierTaxNo | invoiceAmount | invoiceType | dueDate  | additionalDueDate |
+      |           | 4050604050    | 1000          | E_FATURA    | TODAY+30 | TODAY+20          |
+    O zaman hata mesajı alınmalı
+    Ve hata kodu 'INVALID_ADDITIONAL_DUE_DATE_AFTER' olmalı
+    Ve hata mesajı 'The additional due date cannot be earlier than the due date.' içermeli
+    Ve fatura yüklenmemiş olmalı
+
+  @vade @duedate @holiday @buyer
+  Senaryo: V2 - Vade tarihi resmi tatile denk geliyor - INVALID_DUE_DATE_HOLIDAY
+    Eğer ki aşağıdaki alanlarla fatura yüklenmeye çalışılırsa
+      | invoiceNo | supplierTaxNo | invoiceAmount | invoiceType | dueDate | additionalDueDate |
+      |           | 4050604050    | 1000          | E_FATURA    | HOLIDAY | YOK               |
+    O zaman hata mesajı alınmalı
+    Ve hata kodu 'INVALID_DUE_DATE_HOLIDAY' olmalı
+    Ve hata mesajı 'The due date falls on a holiday. Please check.' içermeli
+    Ve fatura yüklenmemiş olmalı
+
+  @vade @additional-duedate @holiday @buyer
+  Senaryo: V2 - Ek vade tarihi resmi tatile denk geliyor - INVALID_ADDITIONAL_DUE_DATE_HOLIDAY
+    Eğer ki aşağıdaki alanlarla fatura yüklenmeye çalışılırsa
+      | invoiceNo | supplierTaxNo | invoiceAmount | invoiceType | dueDate  | additionalDueDate |
+      |           | 4050604050    | 1000          | E_FATURA    | TODAY+30 | HOLIDAY           |
+    O zaman hata mesajı alınmalı
+    Ve hata kodu 'INVALID_ADDITIONAL_DUE_DATE_HOLIDAY' olmalı
+    Ve hata mesajı 'The additional due date falls on a holiday. Please check.' içermeli
+    Ve fatura yüklenmemiş olmalı

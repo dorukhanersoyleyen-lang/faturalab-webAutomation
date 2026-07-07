@@ -633,14 +633,26 @@ public class InvoiceManagementStepDefs {
                 : ((baseInvoiceNo == null || baseInvoiceNo.trim().isEmpty()) ? generateUniqueInvoiceNo("AUTO") : baseInvoiceNo.trim());
         
         // Dates: use provided values as-is to trigger date validations
+        // Dinamik tarih token'ları desteklenir (statik tarihler feature'ı zamanla çürütür):
+        //   TODAY / TODAY+N / TODAY-N -> bugüne göre gün ofseti (yyyy-MM-dd)
+        //   HOLIDAY                   -> bir sonraki 29 Ekim (Cumhuriyet Bayramı, sabit resmi tatil)
+        //   YOK / NULL                -> alan null gönderilir (yalnızca additionalDueDate için anlamlı;
+        //                                API'nin dueDate-tatil dalı ancak additionalDueDate null iken çalışır)
         String providedInvoiceDate = invoiceData.get("invoiceDate");
         String providedDueDate = invoiceData.get("dueDate");
         String providedAdditionalDueDate = invoiceData.get("additionalDueDate");
         String today = getCurrentDate();
         String futureDate = getFutureDate(45);
-        String invoiceDateToUse = (providedInvoiceDate != null && !providedInvoiceDate.trim().isEmpty()) ? providedInvoiceDate.trim() : today;
-        String dueDateToUse = (providedDueDate != null && !providedDueDate.trim().isEmpty()) ? providedDueDate.trim() : futureDate;
-        String additionalDueDateToUse = (providedAdditionalDueDate != null && !providedAdditionalDueDate.trim().isEmpty()) ? providedAdditionalDueDate.trim() : dueDateToUse;
+        String invoiceDateToUse = resolveDateOrDefault(providedInvoiceDate, today);
+        String dueDateToUse = resolveDateOrDefault(providedDueDate, futureDate);
+        String additionalDueDateToUse;
+        if (providedAdditionalDueDate != null
+                && ("YOK".equalsIgnoreCase(providedAdditionalDueDate.trim())
+                        || "NULL".equalsIgnoreCase(providedAdditionalDueDate.trim()))) {
+            additionalDueDateToUse = null;
+        } else {
+            additionalDueDateToUse = resolveDateOrDefault(providedAdditionalDueDate, dueDateToUse);
+        }
         
         // Hash & taxExclusive: honor provided columns exactly; don't auto-generate if column exists
         String hashCodeToUse = "";
@@ -775,6 +787,67 @@ public class InvoiceManagementStepDefs {
     }
     
     // Utility methods
+
+    /**
+     * Data table tarih hücresindeki dinamik token'ı çözer; token değilse değeri aynen döner.
+     * Boş/eksik hücre -> verilen default. Desteklenen token'lar:
+     *   TODAY, TODAY+N, TODAY-N -> bugüne göre gün ofseti. Pozitif ofsetlerde hafta sonu ve
+     *                              sabit resmi tatiller İLERİ atlanır (geçerli tarih beklenen
+     *                              senaryoların tatil validasyonuna yanlışlıkla takılmaması için).
+     *   HOLIDAY                 -> bir sonraki 29 Ekim (Cumhuriyet Bayramı — holiday tablosunda fixed).
+     */
+    private String resolveDateOrDefault(String raw, String defaultValue) {
+        if (raw == null || raw.trim().isEmpty()) {
+            return defaultValue;
+        }
+        String v = raw.trim();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+
+        if (v.toUpperCase(java.util.Locale.ROOT).startsWith("TODAY")) {
+            int offset = 0;
+            String rest = v.substring("TODAY".length()).trim();
+            if (!rest.isEmpty()) {
+                offset = Integer.parseInt(rest.replace("+", "").trim());
+            }
+            Calendar cal = Calendar.getInstance();
+            cal.add(Calendar.DAY_OF_MONTH, offset);
+            if (offset > 0) {
+                while (isWeekendOrFixedHoliday(cal)) {
+                    cal.add(Calendar.DAY_OF_MONTH, 1);
+                }
+            }
+            return sdf.format(cal.getTime());
+        }
+
+        if ("HOLIDAY".equalsIgnoreCase(v)) {
+            Calendar now = Calendar.getInstance();
+            Calendar oct29 = Calendar.getInstance();
+            oct29.set(now.get(Calendar.YEAR), Calendar.OCTOBER, 29);
+            if (!oct29.getTime().after(now.getTime())) {
+                oct29.add(Calendar.YEAR, 1);
+            }
+            return sdf.format(oct29.getTime());
+        }
+
+        return v;
+    }
+
+    /** Hafta sonu veya sabit tarihli TR resmi tatili mi? (Dini bayramlar yıla göre değişir, kapsam dışı.) */
+    private boolean isWeekendOrFixedHoliday(Calendar cal) {
+        int dow = cal.get(Calendar.DAY_OF_WEEK);
+        if (dow == Calendar.SATURDAY || dow == Calendar.SUNDAY) {
+            return true;
+        }
+        int month = cal.get(Calendar.MONTH);
+        int day = cal.get(Calendar.DAY_OF_MONTH);
+        return (month == Calendar.JANUARY && day == 1)
+                || (month == Calendar.APRIL && day == 23)
+                || (month == Calendar.MAY && (day == 1 || day == 19))
+                || (month == Calendar.JULY && day == 15)
+                || (month == Calendar.AUGUST && day == 30)
+                || (month == Calendar.OCTOBER && (day == 28 || day == 29));
+    }
+
     private String getCurrentDate() {
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         return sdf.format(new Date());
