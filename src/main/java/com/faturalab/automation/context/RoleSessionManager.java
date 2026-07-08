@@ -324,12 +324,16 @@ public class RoleSessionManager {
             log.info("[{}] Tümünü seç: {}", role.getDisplayName(), unselectAll);
             waitForVaadinStatic(driver);
 
-            // 4. "Ara" kutusuna hedefin ilk kelimesini yaz (ASCII-güvenli daraltma).
-            //    Tam string yerine ilk kelime: uygulamanın kendi araması Türkçe-duyarlı
-            //    olabilir, ilk kelime genelde ASCII (EFG, Test, ALBC) ve listeyi daraltmaya yeter.
+            // 4. "Ara" kutusuna hedefin ASCII-güvenli EN UZUN prefix'ini yaz.
+            //    İlk kelime (ör. "Test") büyük listelerde (Ticari İşletme) yetersiz daraltır;
+            //    hedef satır virtual scroll'da render edilmeyince checkbox bulunamaz.
+            //    İlk Türkçe karaktere kadarki prefix hem ASCII-güvenli hem maksimum ayırt edici:
+            //    "Test Otomasyon Sadece Tedarikçi" -> "Test Otomasyon Sadece Tedarik"
+            //    "EFG Gıda" -> "EFG G"  |  "ALBC" -> "ALBC"
             Boolean typed = (Boolean) js.executeScript(
                 "var target = arguments[0];" +
-                "var firstWord = target.split(/\\s+/)[0] || target;" +
+                "var m = target.match(/^[^çğıöşüÇĞİÖŞÜ]+/);" +
+                "var searchStr = (m && m[0].trim().length >= 3) ? m[0].trim() : (target.split(/\\s+/)[0] || target);" +
                 "var dlg = document.querySelector('vaadin-dialog-overlay.table-filter-dialog');" +
                 "var inp = dlg.querySelector('vaadin-text-field[label=\"Ara\"] input');" +
                 "if (!inp) {" +
@@ -338,7 +342,7 @@ public class RoleSessionManager {
                 "}" +
                 "if (!inp) return false;" +
                 "inp.focus();" +
-                "inp.value = firstWord;" +
+                "inp.value = searchStr;" +
                 "inp.dispatchEvent(new Event('input', {bubbles: true}));" +
                 "inp.dispatchEvent(new Event('change', {bubbles: true}));" +
                 "return true;", target);
