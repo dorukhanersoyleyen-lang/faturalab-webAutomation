@@ -153,6 +153,44 @@ public class BuyerBulkUploadPage extends BasePageObject {
         return dialogClosed && noError;
     }
 
+    /**
+     * Geçersiz dosya tipi reddini bekler ve red bildiriminin metnini döner.
+     * Kaynak koda göre alıcı dialog'u desteklenmeyen uzantıda
+     * "Only files with xls, xlsx, csv, xml, zip extensions can be uploaded." (veya TR karşılığı) verir.
+     *
+     * @return red bildirimi metni; süre içinde red görülmezse null
+     */
+    public String waitForRejectionMessage(int timeoutSeconds) {
+        long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
+        while (System.currentTimeMillis() < deadline) {
+            String toast = readVisibleNotificationText();
+            if (toast != null) {
+                String lower = toast.toLowerCase(java.util.Locale.ROOT);
+                boolean isRejection = lower.contains("extension") || lower.contains("uzant")
+                        || lower.contains("only files") || lower.contains("yüklenebilir")
+                        || lower.contains("yuklenebilir") || lower.contains("desteklen");
+                if (isRejection) {
+                    log.info("Dosya tipi reddi bildirimi: {}", toast);
+                    return toast;
+                }
+            }
+            if (dialogOps.isErrorNotificationVisible()) {
+                String n = dialogOps.getNotificationText();
+                if (n != null && !n.trim().isEmpty()) {
+                    log.info("Red (inline) bildirimi: {}", n);
+                    return n;
+                }
+            }
+            try {
+                Thread.sleep(400);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return null;
+    }
+
     /** O an görünür vaadin-notification-card / toast metnini döner, yoksa null. */
     private String readVisibleNotificationText() {
         try {
