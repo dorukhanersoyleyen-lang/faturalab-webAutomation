@@ -140,7 +140,7 @@ public final class TzfInvoiceExcelGenerator {
                     String invoiceNo = "TZFZIP" + stamp + "-" + i;
                     // Kağıt fatura görseli olarak minimal geçerli PNG (dosya adı = fatura no)
                     zos.putNextEntry(new ZipEntry(invoiceNo + ".png"));
-                    zos.write(minimalPng());
+                    zos.write(invoiceImagePngBytes(invoiceNo));
                     zos.closeEntry();
                     // amount/date/hash bu akışta kullanılmıyor (PAPER, ZIP), sadece no taşınır
                     TzfScenarioContext.addInvoice(new TzfInvoice(i, invoiceNo, "", "", "", ""));
@@ -152,6 +152,30 @@ public final class TzfInvoiceExcelGenerator {
             return absolutePath;
         } catch (Exception e) {
             throw new IllegalStateException("TZF ZIP üretimi başarısız: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Tedarikçi "Kağıt Fatura" akışı için tekil görsel (PNG) fatura dosyası üretir.
+     * Kağıt fatura radyosu jpg/png/pdf/doc/docx kabul eder ve İMZA GEREKTİRMEZ (PAPER).
+     * Dosya adı benzersiz fatura numarasıdır; context'e yazılır.
+     *
+     * @return üretilen .png dosyasının mutlak yolu
+     */
+    public static String generatePaperInvoiceImage() {
+        TzfScenarioContext.reset();
+        String stamp = java.time.LocalDateTime.now().format(INVOICE_NO_STAMP);
+        try {
+            File outDir = ensureOutDir();
+            String invoiceNo = "TZFIMG" + stamp;
+            File png = new File(outDir, invoiceNo + ".png");
+            writeInvoiceImagePng(png, invoiceNo);
+            TzfScenarioContext.addInvoice(new TzfInvoice(1, invoiceNo, "", "", "", ""));
+            TzfScenarioContext.setExcelPath(png.getAbsolutePath());
+            log.info("Kağıt fatura görseli (PNG) üretildi: {}", png.getAbsolutePath());
+            return png.getAbsolutePath();
+        } catch (Exception e) {
+            throw new IllegalStateException("Kağıt fatura görseli üretimi başarısız: " + e.getMessage(), e);
         }
     }
 
@@ -179,19 +203,39 @@ public final class TzfInvoiceExcelGenerator {
         return outDir;
     }
 
-    /** 1x1 saydam PNG (67 byte) — geçerli PNG imza+IHDR+IDAT+IEND. */
-    private static byte[] minimalPng() {
-        return new byte[]{
-                (byte)0x89,0x50,0x4E,0x47,0x0D,0x0A,0x1A,0x0A,
-                0x00,0x00,0x00,0x0D,0x49,0x48,0x44,0x52,
-                0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,
-                0x08,0x06,0x00,0x00,0x00,0x1F,0x15,(byte)0xC4,
-                (byte)0x89,0x00,0x00,0x00,0x0A,0x49,0x44,0x41,
-                0x54,0x78,(byte)0x9C,0x63,0x00,0x01,0x00,0x00,
-                0x05,0x00,0x01,0x0D,0x0A,0x2D,(byte)0xB4,0x00,
-                0x00,0x00,0x00,0x49,0x45,0x4E,0x44,(byte)0xAE,
-                0x42,0x60,(byte)0x82
-        };
+    /**
+     * Gerçekçi bir kağıt fatura görseli (A4 oranlı PNG) üretir — üzerinde fatura no metni.
+     * 1x1 saydam PNG server'da "Beklenmeyen hata"ya yol açıyordu (görsel işleme/önizleme
+     * çok küçük görüntüde patlıyor); anlamlı boyutlu gerçek görüntü bu sorunu giderir.
+     */
+    private static void writeInvoiceImagePng(File out, String invoiceNo) throws Exception {
+        try (FileOutputStream fos = new FileOutputStream(out)) {
+            fos.write(invoiceImagePngBytes(invoiceNo));
+        }
+    }
+
+    /**
+     * Gerçekçi kağıt fatura görseli (A4 oranlı PNG, fatura no metinli) byte[]'i üretir.
+     * 1x1 saydam PNG server'da "Beklenmeyen hata"ya yol açıyordu; anlamlı boyutlu görüntü giderir.
+     */
+    private static byte[] invoiceImagePngBytes(String invoiceNo) throws Exception {
+        int w = 400, h = 560;
+        java.awt.image.BufferedImage img =
+                new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = img.createGraphics();
+        g.setColor(java.awt.Color.WHITE);
+        g.fillRect(0, 0, w, h);
+        g.setColor(java.awt.Color.BLACK);
+        g.drawRect(20, 20, w - 40, h - 40);
+        g.setFont(new java.awt.Font("SansSerif", java.awt.Font.BOLD, 22));
+        g.drawString("KAĞIT FATURA", 40, 70);
+        g.setFont(new java.awt.Font("SansSerif", java.awt.Font.PLAIN, 16));
+        g.drawString("Fatura No: " + invoiceNo, 40, 120);
+        g.drawString("Otomasyon test belgesidir.", 40, 160);
+        g.dispose();
+        java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(img, "png", baos);
+        return baos.toByteArray();
     }
 
     // ─── Şablon satırları ─────────────────────────────────────────────────────

@@ -36,7 +36,9 @@ import java.io.File;
         glue = {
                 "com.faturalab.automation.stepdefinitions.ui"
         },
-        tags = "@uat and not @disabled",
+        // @regression: defect'e bloke / stepdef'i eksik senaryolar — RegressionTestRunner'da koşar,
+        // günlük UAT skorunu kirletmez (örn. TD-00x kağıt fatura, defect #5813 fix'ini bekliyor).
+        tags = "@uat and not @disabled and not @regression",
         plugin = {
                 "pretty",
                 "html:target/cucumber-reports/uat/index.html",
