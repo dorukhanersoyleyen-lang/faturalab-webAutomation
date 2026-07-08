@@ -394,38 +394,55 @@ public class AuctionInvoiceUploadStepDefs {
     public void gecersiz_auction_tip_ile_fatura_yuklerse(DataTable dataTable) {
         // Ensure API is initialized
         ensureAPIInitialized();
-        
+
         List<Map<String, String>> invoiceData = dataTable.asMaps(String.class, String.class);
-        log.info("Creating auction upload request with invalid auction type");
-        
+        log.info("Creating auction upload request with invalid invoice type");
+
         // Generate unique reference number
         lastReferenceNo = InvoiceTestDataGenerator.generateUniqueReferenceNo();
-        
-        // Create auction invoices with invalid type
+
+        // Eski implementasyon geçersiz tipi hiçbir alana koymuyordu (request'e tamamen
+        // geçerli veri gidiyor, dueDate vb. de eksik kalıp response null oluyordu) —
+        // test hiçbir şeyi doğrulamıyordu. Artık data table'daki auctionType değeri
+        // faturanın invoiceType alanına konur; diğer tüm alanlar geçerli doldurulur ki
+        // TEK geçersizlik tip olsun -> API INVALID_INVOICE_TYPE döner (canlı yanıtla doğrulandı).
+        long runBase = System.currentTimeMillis() % 1_000_000_000L;
         List<AuctionInvoice> auctionInvoices = new ArrayList<>();
-        
-        for (Map<String, String> row : invoiceData) {
-            String invoiceNo = row.get("invoiceNo");
+
+        for (int i = 0; i < invoiceData.size(); i++) {
+            Map<String, String> row = invoiceData.get(i);
             String supplierTaxNo = row.get("supplierTaxNo");
             Double invoiceAmount = Double.parseDouble(row.get("invoiceAmount"));
-            String invoiceType = row.get("invoiceType");
-            String auctionType = row.get("auctionType"); // This will be INVALID_TYPE
-            
-            AuctionInvoice auctionInvoice = new AuctionInvoice(invoiceNo, supplierTaxNo, invoiceAmount, invoiceType);
-            // Note: auctionType is part of request, not individual invoice
-            auctionInvoices.add(auctionInvoice);
-            
-            log.info("Added invalid auction invoice: packageNo={}, auctionType={}", invoiceNo, auctionType);
+            String invalidType = row.get("auctionType"); // örn. INVALID_TYPE — invoiceType olarak gönderilir
+
+            String packageNo = String.format("%010d", runBase + i);
+            AuctionInvoice inv = new AuctionInvoice(packageNo, supplierTaxNo, invoiceAmount, invalidType);
+            inv.setRequestedAmount((int) (invoiceAmount * 0.9));
+            inv.setTaxExclusiveAmount((int) (invoiceAmount * 0.95));
+            inv.setCurrencyType("TL");
+            inv.setDueDate(InvoiceTestDataGenerator.getFutureWorkingDate(30));
+            inv.setExtraInvoiceDueDay(0);
+            inv.setInvoiceDate(InvoiceTestDataGenerator.getCurrentDate());
+            inv.setInvoiceETTN("");
+            inv.setInvoiceTypeCode("SATIS");
+            inv.setOrderNo(String.format("%010d", runBase + 100 + i));
+            inv.setItemNo(String.format("%08d", (runBase + i) % 100_000_000L));
+            auctionInvoices.add(inv);
+
+            log.info("Added invoice with INVALID invoiceType='{}' (packageNo={})", invalidType, packageNo);
         }
-        
+
         // Create upload request
         String userEmail = faturalabAPI.getEnvironment().getUserEmail();
         lastAuctionRequest = new UploadAuctionRequest(auctionInvoices, lastReferenceNo, userEmail);
-        
-        // Call API - this should fail
+
+        // Call API - this should fail with INVALID_INVOICE_TYPE
         lastResponse = faturalabAPI.uploadAuction(lastAuctionRequest);
-        
-        log.info("Invalid auction type upload attempt - Status: {}, Response: {}", 
+        // Ortak assertion adımları (hata kodu/mesajı) InvoiceManagementStepDefs'te yaşar
+        // ve yanıtı shared holder'dan okur — set edilmezse yanlış/eski yanıt kontrol edilir.
+        CucumberHooks.setSharedLastResponse(lastResponse);
+
+        log.info("Invalid invoice type upload attempt - Status: {}, Response: {}",
                 lastResponse.getStatusCode(), lastResponse.getBody().asString());
     }
     

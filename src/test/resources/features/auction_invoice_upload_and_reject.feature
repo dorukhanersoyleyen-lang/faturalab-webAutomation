@@ -32,10 +32,15 @@
   Senaryo: ALBC - Geçersiz auction tip ile fatura yükleme testi
     Diyelim ki "dev.faturalab.buyer.albc" ortamı kullanılıyor
     Ve kullanıcı kimlik doğrulaması yapıldı
+    # auctionType kolonundaki geçersiz değer faturanın invoiceType alanına konur;
+    # diğer tüm alanlar geçerli -> tek geçersizlik tip. Beklenen kod+mesaj canlı API
+    # yanıtıyla doğrulandı (ErrorType.30).
     Eğer ki geçersiz auction tip ile fatura yüklerse
       | invoiceNo        | supplierTaxNo | invoiceAmount | invoiceType | auctionType |
       | ALBC-AUC-INV001  | 4050604050    | 1500          | E_FATURA    | INVALID_TYPE |
     O zaman hata mesajı alınmalı
+    Ve hata kodu 'INVALID_INVOICE_TYPE' olmalı
+    Ve hata mesajı 'Invoice type is invalid' içermeli
     Ve auction fatura yüklenmemiş olmalı
 
   @edge-case @albc @auction

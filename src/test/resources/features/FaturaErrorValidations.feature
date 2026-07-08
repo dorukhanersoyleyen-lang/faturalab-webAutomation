@@ -42,13 +42,28 @@
     Ve fatura yüklenmemiş olmalı
 
   @date @buyer
-  Senaryo: Geçersiz fatura tarihi - DISCOUNTED_INVOICE_DATE
+  # Eski "Geçersiz fatura tarihi" senaryosu üç kavramı karıştırıyordu (bozuk format
+  # gönderip boş-tarih mesajı bekliyordu) ve kronik fail'di. API'nin gerçek davranışına
+  # göre (kaynak kod: Api.java uploadInvoice) ikiye bölündü:
+  #  - Tarih NULL           -> INVALID_INVOICE_DATE (ErrorType.63: "The invoice date cannot be blank.")
+  #  - Tarih formatı BOZUK  -> INVALID_REQUEST_PARAMS (deserialize aşamasında reddedilir,
+  #                            iş kuralı validasyonuna hiç ulaşmaz)
+  Senaryo: Boş fatura tarihi - INVALID_INVOICE_DATE
     Eğer ki aşağıdaki alanlarla fatura yüklenmeye çalışılırsa
       | invoiceNo        | supplierTaxNo | invoiceAmount | invoiceType | invoiceDate |
-      | DAT-INV-0001     | 4050604050    | 1000          | E_FATURA    | 2025-13-99  |
+      | DAT-INV-0001     | 4050604050    | 1000          | E_FATURA    | YOK         |
     O zaman hata mesajı alınmalı
     Ve hata kodu 'INVALID_INVOICE_DATE' olmalı
     Ve hata mesajı 'The invoice date cannot be blank' içermeli
+    Ve fatura yüklenmemiş olmalı
+
+  Senaryo: Bozuk formatlı fatura tarihi - INVALID_REQUEST_PARAMS
+    Eğer ki aşağıdaki alanlarla fatura yüklenmeye çalışılırsa
+      | invoiceNo        | supplierTaxNo | invoiceAmount | invoiceType | invoiceDate |
+      | DAT-INV-0002     | 4050604050    | 1000          | E_FATURA    | 2025-13-99  |
+    O zaman hata mesajı alınmalı
+    Ve hata kodu 'INVALID_REQUEST_PARAMS' olmalı
+    Ve hata mesajı 'Invalid request parameter' içermeli
     Ve fatura yüklenmemiş olmalı
 
   @dueDate @buyer

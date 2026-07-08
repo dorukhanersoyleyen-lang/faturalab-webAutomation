@@ -712,6 +712,13 @@ public class InvoiceManagementStepDefs {
     
     @Then("^hata kodu '([^']*)' olmalı$")
     public void hata_kodu_olmali(String expectedErrorCode) {
+        if (lastResponse == null) {
+            // Başka bir stepdef sınıfının (örn. auction) yaptığı çağrının yanıtına düş
+            Response shared = CucumberHooks.getSharedLastResponse();
+            if (shared != null) {
+                lastResponse = shared;
+            }
+        }
         Assert.assertNotNull(lastResponse, "Response should not be null");
         String body = lastResponse.getBody().asString();
         try {
@@ -744,6 +751,13 @@ public class InvoiceManagementStepDefs {
     
     @And("^hata mesajı '([^']*)' içermeli$")
     public void hata_mesaji_icermeli(String expectedMessagePart) {
+        if (lastResponse == null) {
+            // Başka bir stepdef sınıfının (örn. auction) yaptığı çağrının yanıtına düş
+            Response shared = CucumberHooks.getSharedLastResponse();
+            if (shared != null) {
+                lastResponse = shared;
+            }
+        }
         Assert.assertNotNull(lastResponse, "Response should not be null");
         String body = lastResponse.getBody().asString();
         try {
@@ -801,6 +815,11 @@ public class InvoiceManagementStepDefs {
             return defaultValue;
         }
         String v = raw.trim();
+        // YOK/NULL: alan hiç gönderilmez (null) — boş-tarih validasyonları (örn.
+        // INVALID_INVOICE_DATE "cannot be blank") ancak böyle tetiklenebilir.
+        if ("YOK".equalsIgnoreCase(v) || "NULL".equalsIgnoreCase(v)) {
+            return null;
+        }
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
 
         if (v.toUpperCase(java.util.Locale.ROOT).startsWith("TODAY")) {
