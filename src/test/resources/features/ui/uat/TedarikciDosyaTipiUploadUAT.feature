@@ -45,10 +45,11 @@ Feature: Tedarikçi Farklı Dosya Tipleriyle Fatura Yükleme UAT
     And tedarikçi E-Fatura türüyle hazırlanan dosya yüklenir
     Then tedarikçi dosyası başarıyla yüklenmiş olmalı
 
-# TD-005 (Tedarikçi XML'li ZIP) KAPSAM DIŞI — kaldırıldı:
-#   Tedarikçi E-Fatura yolunda saf-XML ZIP yüklendiğinde dialog yalnızca "Kapat"
-#   butonu gösteriyor; "Yükle"/"Kaydet" akışı tetiklenmiyor (canlı koşumda doğrulandı,
-#   2026-07-09). Yani bu ZIP tipi tedarikçi E-Fatura radyosuyla işlenmiyor.
-#   Tedarikçi XML kabiliyeti TD-004 (tekil dummy imzalı XML) ile kanıtlı ve yeşil.
-#   XML'li ZIP asıl olarak ALICI "Fatura Yükle" (isXmlZipFile) akışına aittir; ancak
-#   şablon tarafları (EFG/ALBC) dev'de alıcı firma eşleşmesi gerektirir → ayrı iş.
+  # TD-005: Bug #5746 doğrulaması — alıcı yükleme talebi yetkisi açık tedarikçide (EFG)
+  # ZIP yüklemede "Bilinmeyen bir hata oluştu" GELMEMELİ (fix doğrulama).
+  @ui @uat @regression @tedarikci-dosya-tipi @dosya-zip @bug-5746
+  Scenario: TD-005 - Tedarikçi ZIP yüklemede bilinmeyen hata gelmemeli (#5746)
+    Given tedarikçi için 2 adet dummy imzalı XML içeren ZIP hazırlanır
+    Given tedarikci olarak giriş yapılır
+    And tedarikçi E-Fatura türüyle hazırlanan dosya yüklenir
+    Then tedarikçi ZIP yüklemede bilinmeyen hata gösterilmemeli

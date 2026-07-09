@@ -113,6 +113,15 @@ public class TedarikciDosyaTipiStepDefs {
                 "Kağıt fatura yükleme başarı bildirimi görülmedi (veya hata/red bildirimi geldi)");
     }
 
+    @Then("tedarikçi ZIP yüklemede bilinmeyen hata gösterilmemeli")
+    public void zipBilinmeyenHataGelmemeli() {
+        // Bug #5746: alıcı yükleme talebi yetkisi açık tedarikçide ZIP yüklemede
+        // "Bilinmeyen bir hata oluştu" GELMEMELİ.
+        String unknown = page().waitForUnknownError(12);
+        Assert.assertNull(unknown, "#5746 REGRESYON: ZIP yüklemede bilinmeyen hata çıktı: " + unknown);
+        log.info("[TEDARIKCI-DOSYA-TIPI] #5746 doğrulandı: ZIP yüklemede bilinmeyen hata YOK.");
+    }
+
     @Then("tedarikçi dosya tipi reddedildiği bildirimi gösterilmeli")
     public void tedarikciReddedilir() {
         // Kağıt fatura türünde red iki biçimde: görünür toast VEYA detay modalının hiç açılmaması.

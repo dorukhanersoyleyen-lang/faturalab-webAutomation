@@ -204,6 +204,34 @@ public class SupplierInvoiceUploadPage extends BasePageObject {
         return null;
     }
 
+    /**
+     * Bug #5746 doğrulaması: yükleme sırasında "Bilinmeyen bir hata oluştu"
+     * (unknown error) bildirimi çıkıp çıkmadığını izler.
+     *
+     * @return unknown-error bildirimi görüldüyse metni; süre içinde çıkmazsa null
+     */
+    public String waitForUnknownError(int timeoutSeconds) {
+        long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
+        while (System.currentTimeMillis() < deadline) {
+            String toast = readVisibleNotificationText();
+            if (toast != null) {
+                String lower = toast.toLowerCase(Locale.ROOT);
+                if (lower.contains("bilinmeyen") || lower.contains("beklenmeyen")
+                        || lower.contains("unknown error") || lower.contains("unexpected error")) {
+                    log.warn("Bug #5746 — bilinmeyen hata bildirimi görüldü: {}", toast);
+                    return toast;
+                }
+            }
+            try {
+                Thread.sleep(400);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
+        return null;
+    }
+
     /** Kağıt fatura detay modalı (CompanyPaperInvoiceDialog) görünür mü? */
     private boolean isPaperDetailModalOpen() {
         try {
