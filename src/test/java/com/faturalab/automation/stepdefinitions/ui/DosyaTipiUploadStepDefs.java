@@ -62,6 +62,25 @@ public class DosyaTipiUploadStepDefs {
         log.info("[DOSYA-TIPI] {} dosyası hazırlandı: {}", tip, path);
     }
 
+    @Given("alıcı için {int} adet dummy imzalı XML fatura hazırlanır")
+    public void dummyXmlHazirlanir(int adet) {
+        TzfScenarioContext.reset();
+        String path = null;
+        for (int i = 1; i <= adet; i++) {
+            path = com.faturalab.automation.utils.XmlInvoiceGenerator.generateXml(String.valueOf(i));
+        }
+        TzfScenarioContext.setExcelPath(path); // tekil senaryoda son üretilen yüklenir
+        Assert.assertNotNull(path);
+        log.info("[DOSYA-TIPI] {} adet dummy imzalı XML hazır", adet);
+    }
+
+    @Given("alıcı için {int} adet dummy imzalı XML içeren ZIP hazırlanır")
+    public void dummyXmlZipHazirlanir(int adet) {
+        String path = com.faturalab.automation.utils.XmlInvoiceGenerator.generateXmlZip(adet);
+        Assert.assertTrue(new File(path).exists(), "ZIP üretilemedi: " + path);
+        log.info("[DOSYA-TIPI] {} XML'li ZIP hazır: {}", adet, path);
+    }
+
     @And("alıcı ekranında hazırlanan dosya yüklenir")
     public void hazirlananDosyaYuklenir() {
         String path = TzfScenarioContext.getExcelPath();

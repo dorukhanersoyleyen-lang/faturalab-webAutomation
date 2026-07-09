@@ -5,13 +5,15 @@
 # Test verisi her koşumda runtime üretilir (TzfInvoiceExcelGenerator):
 #   XLS/XLSX -> E-Fatura liste (benzersiz no + hash), imza gerektirmez -> deterministik.
 #
-# KAPSAM DIŞI (imza engeli):
-#  - Tekil geçerli XML: E-Fatura/E-Arşiv imza doğrulaması ister (InvoiceValidation).
-#  - ZIP: Alıcı dialog'u ZIP'i isXmlZipFile=TRUE ile açar (AddInvoiceListDialog:332),
-#    yani içindeki her dosyayı imzalı XML olarak parse eder — görsel/PAPER ZIP akışı
-#    ALICIDA YOK, tedarikçi tarafındadır (CompanyMatchInvoiceListDialog). İmzalı e-fatura
-#    test verimiz olmadığından alıcıda XML ve ZIP başarı testi yazılamaz; format-kabul
-#    matrisinde reddedilmeyen taraftalar, negatif taraf .txt ile doğrulanır.
+# XML/ZIP (dummy imza ile — kullanıcı onayı: dev ortamı dummy imzayı kabul eder):
+#  - Şablon: testdata/test-invoice.xml (dev'in kabul ettiği KANITLI: TC-COMP-01-001 geçiyor).
+#  - Şablon tarafları SABİT: tedarikçi EFG (3960656675), alıcı ALBC (3456789010) —
+#    bu yüzden XML/ZIP senaryoları ALBC alıcısıyla koşar ("alici olarak giriş yapılır"),
+#    TZF alıcısıyla DEĞİL (buyer TIN eşleşmezse AddInvoiceListDialog.106 hatası).
+# NOT: XML ve XML'li ZIP başarı testleri ALICI tarafında değil TEDARİKÇİ tarafında
+#   (TedarikciDosyaTipiUploadUAT — E-Fatura radyosu): dev, tedarikçi XML upload'ında
+#   test-invoice.xml şablonunu (EFG tedarikçili) kabul ediyor. Alıcı XML upload farklı
+#   davrandığı ve dev'de firma eşleşmesi gerektirdiği için burada kapsanmaz.
 Feature: Farklı Dosya Tipleriyle Fatura Yükleme UAT
   Alıcı, desteklenen Excel formatlarıyla (.xls / .xlsx) fatura listesi yükleyebilmeli;
   desteklenmeyen uzantılar reddedilmeli.

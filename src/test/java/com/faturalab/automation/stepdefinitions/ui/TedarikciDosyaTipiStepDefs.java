@@ -68,6 +68,45 @@ public class TedarikciDosyaTipiStepDefs {
         p.uploadFile(path);
     }
 
+    @Given("tedarikçi için {int} adet dummy imzalı XML fatura hazırlanır")
+    public void tedarikciXmlHazirlanir(int adet) {
+        TzfScenarioContext.reset();
+        String path = null;
+        for (int i = 1; i <= adet; i++) {
+            path = com.faturalab.automation.utils.XmlInvoiceGenerator.generateXml(String.valueOf(i));
+        }
+        TzfScenarioContext.setExcelPath(path);
+        Assert.assertNotNull(path);
+        log.info("[TEDARIKCI-DOSYA-TIPI] {} adet dummy imzalı XML hazır", adet);
+    }
+
+    @Given("tedarikçi için {int} adet dummy imzalı XML içeren ZIP hazırlanır")
+    public void tedarikciXmlZipHazirlanir(int adet) {
+        String path = com.faturalab.automation.utils.XmlInvoiceGenerator.generateXmlZip(adet);
+        Assert.assertTrue(new File(path).exists(), "ZIP üretilemedi: " + path);
+        log.info("[TEDARIKCI-DOSYA-TIPI] {} XML'li ZIP hazır: {}", adet, path);
+    }
+
+    @And("tedarikçi E-Fatura türüyle hazırlanan dosya yüklenir")
+    public void eFaturaTuruyleYuklenir() {
+        String path = TzfScenarioContext.getExcelPath();
+        Assert.assertNotNull(path, "Yüklenecek dosya yolu context'te olmalı");
+        SupplierInvoiceUploadPage p = page();
+        Assert.assertTrue(p.openUploadDialog(), "Tedarikçi fatura yükleme dialogu açılamadı");
+        p.selectEFatura();
+        p.uploadFile(path);
+        p.submitUpload(); // TC-COMP-01: XML seçildikten sonra "Yükle" gerekli
+    }
+
+    @And("kağıt fatura detay modalında zorunlu alanlar doldurulur ve kaydedilir")
+    public void detayModaliDoldurulurKaydedilir() {
+        String invoiceNo = TzfScenarioContext.getInvoices().isEmpty()
+                ? "OTOIMG" + System.currentTimeMillis()
+                : TzfScenarioContext.getInvoices().get(0).invoiceNo;
+        Assert.assertTrue(page().fillPaperInvoiceDetailsAndSave(invoiceNo),
+                "Kağıt fatura detay modalı doldurulup kaydedilemedi");
+    }
+
     @Then("tedarikçi dosyası başarıyla yüklenmiş olmalı")
     public void tedarikciBasariyla() {
         Assert.assertTrue(page().waitForUploadSuccess(20),
@@ -76,8 +115,9 @@ public class TedarikciDosyaTipiStepDefs {
 
     @Then("tedarikçi dosya tipi reddedildiği bildirimi gösterilmeli")
     public void tedarikciReddedilir() {
-        String msg = page().waitForRejectionMessage(15);
-        Assert.assertNotNull(msg, "Desteklenmeyen uzantı için red bildirimi gösterilmedi");
-        log.info("[TEDARIKCI-DOSYA-TIPI] Red bildirimi doğrulandı: {}", msg);
+        // Kağıt fatura türünde red iki biçimde: görünür toast VEYA detay modalının hiç açılmaması.
+        String msg = page().waitForRejectionOrNoProgress(15);
+        Assert.assertNotNull(msg, "Desteklenmeyen uzantı reddedilmedi (toast yok ve detay modalı açıldı)");
+        log.info("[TEDARIKCI-DOSYA-TIPI] Red doğrulandı: {}", msg);
     }
 }
