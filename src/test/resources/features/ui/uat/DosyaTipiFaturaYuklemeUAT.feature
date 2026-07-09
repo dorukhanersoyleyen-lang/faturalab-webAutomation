@@ -38,3 +38,18 @@ Feature: Farklı Dosya Tipleriyle Fatura Yükleme UAT
     When admin TZF alıcı kullanıcısına geçiş yapar
     And alıcı ekranında hazırlanan dosya yüklenir
     Then dosya tipi reddedildiği bildirimi gösterilmeli
+
+  # ALBC/BCD gerçek imzalı şablonla alıcı XML yükleme (buyer = ALBC 3456789010).
+  @ui @uat @regression @dosya-tipi @happy-path @dosya-alici-xml
+  Scenario: DT-005 - Alıcı (ALBC) dummy imzalı tekil XML yükleyebilmeli
+    Given alıcı için 1 adet dummy imzalı XML fatura hazırlanır
+    When alici olarak giriş yapılır
+    And alıcı ekranında hazırlanan dosya yüklenir
+    Then dosya başarıyla yüklenmiş olmalı
+
+  @ui @uat @regression @dosya-tipi @happy-path @dosya-alici-zip
+  Scenario: DT-006 - Alıcı (ALBC) XML'li ZIP paketiyle fatura yükleyebilmeli
+    Given alıcı için 2 adet dummy imzalı XML içeren ZIP hazırlanır
+    When alici olarak giriş yapılır
+    And alıcı ekranında hazırlanan dosya yüklenir
+    Then dosya başarıyla yüklenmiş olmalı

@@ -133,7 +133,8 @@ public class BuyerBulkUploadPage extends BasePageObject {
                 }
             }
             if (dialogOps.isErrorNotificationVisible()) {
-                log.warn("Yükleme hata durumu algılandı (inline/upload error).");
+                String errText = dialogOps.getNotificationText();
+                log.warn("Yükleme hata durumu algılandı (inline/upload error). Mesaj: {}", errText);
                 return false;
             }
             try {

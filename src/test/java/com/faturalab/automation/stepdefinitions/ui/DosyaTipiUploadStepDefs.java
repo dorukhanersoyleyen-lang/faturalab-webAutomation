@@ -66,19 +66,20 @@ public class DosyaTipiUploadStepDefs {
     public void dummyXmlHazirlanir(int adet) {
         TzfScenarioContext.reset();
         String path = null;
+        // ALBC/BCD gerçek imzalı şablon: alıcı ALBC (3456789010) fatura buyer'ıyla eşleşir.
         for (int i = 1; i <= adet; i++) {
-            path = com.faturalab.automation.utils.XmlInvoiceGenerator.generateXml(String.valueOf(i));
+            path = com.faturalab.automation.utils.XmlInvoiceGenerator.generateAlbcXml(String.valueOf(i));
         }
         TzfScenarioContext.setExcelPath(path); // tekil senaryoda son üretilen yüklenir
         Assert.assertNotNull(path);
-        log.info("[DOSYA-TIPI] {} adet dummy imzalı XML hazır", adet);
+        log.info("[DOSYA-TIPI] {} adet ALBC/BCD imzalı XML hazır", adet);
     }
 
     @Given("alıcı için {int} adet dummy imzalı XML içeren ZIP hazırlanır")
     public void dummyXmlZipHazirlanir(int adet) {
-        String path = com.faturalab.automation.utils.XmlInvoiceGenerator.generateXmlZip(adet);
+        String path = com.faturalab.automation.utils.XmlInvoiceGenerator.generateAlbcXmlZip(adet);
         Assert.assertTrue(new File(path).exists(), "ZIP üretilemedi: " + path);
-        log.info("[DOSYA-TIPI] {} XML'li ZIP hazır: {}", adet, path);
+        log.info("[DOSYA-TIPI] {} ALBC XML'li ZIP hazır: {}", adet, path);
     }
 
     @And("alıcı ekranında hazırlanan dosya yüklenir")

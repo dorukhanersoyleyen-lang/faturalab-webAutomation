@@ -86,8 +86,62 @@ public final class XmlInvoiceGenerator {
         }
     }
 
+    /**
+     * ALBC alıcılı / BCD tedarikçili gerçek imzalı şablondan (testdata/albc-bcd-invoice.xml)
+     * benzersiz numaralı XML üretir. Taraflar: tedarikçi BCD (1234567891), alıcı ALBC (3456789010)
+     * — ikisi de dev'de mevcut hesaplar. İmza geçersiz olur ama dev kabul eder (kullanıcı onayı).
+     * Alıcı (ALBC) tarafından fatura yükleme testinde kullanılır.
+     */
+    public static String generateAlbcXml(String seqSuffix) {
+        try {
+            String year = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy"));
+            String stamp = java.time.LocalDateTime.now().format(STAMP);
+            String invoiceId = "GNS" + year + stamp.substring(2) + seqSuffix;
+            String content = fillTemplateFrom("testdata/albc-bcd-invoice.xml", invoiceId);
+
+            File outDir = ensureOutDir();
+            File xml = new File(outDir, invoiceId + ".xml");
+            Files.write(xml.toPath(), content.getBytes(StandardCharsets.UTF_8));
+            TzfScenarioContext.addInvoice(new TzfInvoice(
+                    TzfScenarioContext.getInvoices().size() + 1, invoiceId, "", "", "", ""));
+            log.info("ALBC/BCD imzalı XML üretildi: {} ({})", invoiceId, xml.getAbsolutePath());
+            return xml.getAbsolutePath();
+        } catch (Exception e) {
+            throw new IllegalStateException("ALBC XML üretimi başarısız: " + e.getMessage(), e);
+        }
+    }
+
+    /** ALBC/BCD şablonundan N adet XML içeren ZIP üretir (alıcı isXmlZipFile akışı). */
+    public static String generateAlbcXmlZip(int count) {
+        TzfScenarioContext.reset();
+        String stamp = java.time.LocalDateTime.now().format(STAMP);
+        try {
+            File outDir = ensureOutDir();
+            File zip = new File(outDir, "albc-xml-invoices-" + stamp + ".zip");
+            try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zip))) {
+                for (int i = 1; i <= count; i++) {
+                    String invoiceId = "GNS" + LocalDate.now().getYear() + stamp.substring(2) + i;
+                    String content = fillTemplateFrom("testdata/albc-bcd-invoice.xml", invoiceId);
+                    zos.putNextEntry(new ZipEntry(invoiceId + ".xml"));
+                    zos.write(content.getBytes(StandardCharsets.UTF_8));
+                    zos.closeEntry();
+                    TzfScenarioContext.addInvoice(new TzfInvoice(i, invoiceId, "", "", "", ""));
+                }
+            }
+            TzfScenarioContext.setExcelPath(zip.getAbsolutePath());
+            log.info("ALBC/BCD XML'li ZIP üretildi: {} ({} fatura)", zip.getAbsolutePath(), count);
+            return zip.getAbsolutePath();
+        } catch (Exception e) {
+            throw new IllegalStateException("ALBC XML ZIP üretimi başarısız: " + e.getMessage(), e);
+        }
+    }
+
     private static String fillTemplate(String invoiceId) throws Exception {
-        String template = readTemplate();
+        return fillTemplateFrom("testdata/test-invoice.xml", invoiceId);
+    }
+
+    private static String fillTemplateFrom(String resourcePath, String invoiceId) throws Exception {
+        String template = readTemplate(resourcePath);
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
         LocalDate due = LocalDate.now().plusDays(90);
         while (due.getDayOfWeek() == DayOfWeek.SATURDAY || due.getDayOfWeek() == DayOfWeek.SUNDAY) {
@@ -101,13 +155,13 @@ public final class XmlInvoiceGenerator {
                 .replace("{DUE_DATE}", due.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
     }
 
-    private static String readTemplate() throws Exception {
-        URL url = XmlInvoiceGenerator.class.getClassLoader().getResource("testdata/test-invoice.xml");
+    private static String readTemplate(String resourcePath) throws Exception {
+        URL url = XmlInvoiceGenerator.class.getClassLoader().getResource(resourcePath);
         if (url != null) {
             return new String(Files.readAllBytes(new File(url.toURI()).toPath()), StandardCharsets.UTF_8);
         }
         return new String(Files.readAllBytes(
-                new File("src/test/resources/testdata/test-invoice.xml").toPath()), StandardCharsets.UTF_8);
+                new File("src/test/resources/" + resourcePath).toPath()), StandardCharsets.UTF_8);
     }
 
     private static File ensureOutDir() {
