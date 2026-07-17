@@ -124,7 +124,7 @@ public class TzfIslemUATStepDefs {
 
     @Then("faturaların başarıyla yüklendiği doğrulanır")
     public void faturaYuklemeDogrulanir() {
-        boolean success = getBuyerUploadPage().waitForUploadSuccess(20);
+        boolean success = getBuyerUploadPage().waitForUploadSuccess(40);
         Assert.assertTrue(success,
                 "Fatura yükleme başarı bildirimi görülmedi (veya hata bildirimi geldi)");
     }
@@ -158,8 +158,9 @@ public class TzfIslemUATStepDefs {
     public void faturaIcinTeklifAlinir() {
         TzfInvoice first = TzfScenarioContext.getInvoices().get(0);
         TzfScenarioContext.setOfferedInvoiceNo(first.invoiceNo);
-        Assert.assertTrue(getOfferPage().clickTeklifAlForInvoice(first.invoiceNo),
-                "TEKLİF AL butonuna tıklanamadı: " + first.invoiceNo);
+        // TEKLİF AL + modal açılışı retry ile (grid re-render flake'i — #5798 fix).
+        Assert.assertTrue(getOfferPage().clickTeklifAlAndWaitModal(first.invoiceNo, 3),
+                "TEKLİF AL sonrası teklif modalı açılmadı: " + first.invoiceNo);
     }
 
     @And("teklif modalı onaylanır ve işlemdekiler sayfasına yönlenilir")
@@ -173,20 +174,22 @@ public class TzfIslemUATStepDefs {
 
     @And("işlemdekiler sayfasında ilk teklif kabul edilir ve onaylanır")
     public void islemdekilerdeTeklifKabulEdilir() {
-        CompanyQuickOfferPage page = getOfferPage();
-        Assert.assertTrue(page.clickKabulIptal(), "'Kabul / İptal' butonuna tıklanamadı");
-        Assert.assertTrue(page.acceptFirstOfferInModal(),
-                "Teklifler altındaki 'Kabul Et' butonuna tıklanamadı");
-        page.confirmEvet();
+        // Kabul + onay + taze bordro doğrulaması retry ile (#5798 fix).
+        // Taze bordro toast'ı gelmezse kabul commit olmamıştır (auction WAITING) → null → FAIL.
+        String bordroNo = getOfferPage().acceptOfferWithRetryAndCapture(3);
+        TzfScenarioContext.setBordroNo(bordroNo);
+        Assert.assertNotNull(bordroNo,
+                "Teklif kabulü commit olmadı — kabul sonrası taze bordro toast'ı gelmedi "
+                + "(auction WAITING kalmış olabilir).");
+        log.info("[TZF] Kabul commit oldu, taze bordro: {}", bordroNo);
     }
 
     @Then("bordro numarası yakalanır")
     public void bordroNumarasiYakalanir() {
-        String bordroNo = getOfferPage().captureBordroNo();
-        TzfScenarioContext.setBordroNo(bordroNo);
-        Assert.assertNotNull(bordroNo,
-                "Kabul onayı sonrası ekranda bordro numarası yakalanamadı");
-        log.info("[TZF] Bordro no yakalandı: {}", bordroNo);
+        // Bordro önceki adımda taze toast'tan yakalandı; burada yalnızca doğrulanır.
+        String bordroNo = TzfScenarioContext.getBordroNo();
+        Assert.assertNotNull(bordroNo, "Kabul onayı sonrası bordro numarası yakalanamadı");
+        log.info("[TZF] Bordro no doğrulandı: {}", bordroNo);
     }
 
     // ─── Admin: günlük işlemler doğrulaması ──────────────────────────────────

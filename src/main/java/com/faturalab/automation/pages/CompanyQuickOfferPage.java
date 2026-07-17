@@ -423,6 +423,36 @@ public class CompanyQuickOfferPage extends BasePageObject {
     }
 
     /**
+     * TEKLİF AL'a basar ve teklif modalı açılana kadar retry eder.
+     * Grid yeniden render sırasında TEKLİF AL tıklaması bazen sunucuya işlemiyor
+     * → modal açılmıyordu (flaky). Her denemede tıkla + modal açılışını poll et (#5798 fix).
+     */
+    public boolean clickTeklifAlAndWaitModal(String invoiceNo, int maxAttempts) {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                log.info("TEKLİF AL denemesi {}/{} ({})", attempt, maxAttempts, invoiceNo);
+                if (clickTeklifAlForInvoice(invoiceNo)) {
+                    long deadline = System.currentTimeMillis() + 6000L;
+                    while (System.currentTimeMillis() < deadline) {
+                        if (isModalOpen()) {
+                            log.info("Teklif modalı açıldı (deneme {}).", attempt);
+                            return true;
+                        }
+                        Thread.sleep(500);
+                    }
+                }
+                log.warn("Deneme {}: teklif modalı açılmadı, tekrar denenecek.", attempt);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.warn("clickTeklifAlAndWaitModal deneme {}: {}", attempt, e.getMessage());
+            }
+        }
+        return false;
+    }
+
+    /**
      * Açılan teklif modalında hiçbir alanı değiştirmeden tekrar "Teklif Al" butonuna basar.
      */
     public boolean confirmTeklifAlInModal() {
@@ -594,6 +624,89 @@ public class CompanyQuickOfferPage extends BasePageObject {
     }
 
     /**
+     * "Onay" dialogundaki (CompanyAuctionConfirmDialog) zorunlu
+     * "ABF belgesini okudum onaylıyorum" checkbox'ını işaretler, sonra "Evet"e basar
+     * ve commit'i doğrular.
+     *
+     * KÖK NEDEN (kaynak kod CompanyAuctionConfirmDialog:196): ABF gerekli + checkbox
+     * işaretsizse "Evet" yalnızca "Lütfen ABF'yi onaylayınız" uyarısı verip commit ETMEZ
+     * → auction WAITING kalır. Bu yüzden Evet'ten ÖNCE checkbox işaretlenmeli (#5798 fix).
+     *
+     * @return commit doğrulandıysa (Onay dialogu kapandı, ABF uyarısı gelmedi) true
+     */
+    public boolean checkAbfAndConfirmAccept() {
+        try {
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            // 1. Görünür overlay'deki ABF checkbox'ını işaretle (varsa)
+            Object checked = js.executeScript(
+                    "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                    "var ov = ovs[ovs.length-1]; if(!ov) return 'no_overlay';" +
+                    "var cbs = ov.querySelectorAll('vaadin-checkbox');" +
+                    "for (var cb of cbs) {" +
+                    "  var t = (cb.textContent||'').toLowerCase();" +
+                    "  if (t.includes('abf') || t.includes('okudum') || t.includes('onayl')) {" +
+                    "    if (!cb.checked) {" +
+                    "      var inp = cb.querySelector('input') || (cb.shadowRoot && cb.shadowRoot.querySelector('input'));" +
+                    "      if (inp) { inp.click(); } else { cb.click(); }" +
+                    "    }" +
+                    "    return 'checked:' + cb.checked;" +
+                    "  }" +
+                    "}" +
+                    "return 'no_abf_checkbox';");
+            log.info("ABF checkbox durumu: {}", checked);
+            Thread.sleep(400);
+
+            // 2. "Evet" butonuna bas (Onay dialogu içindeki acceptButton)
+            Object evet = js.executeScript(
+                    "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                    "var ov = ovs[ovs.length-1]; if(!ov) return false;" +
+                    "var btns = ov.querySelectorAll('vaadin-button, button');" +
+                    "for (var b of btns) {" +
+                    "  var t = (b.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "  if (!b.disabled && t === 'evet') { b.click(); return true; }" +
+                    "}" +
+                    "return false;");
+            log.info("'Evet' tıklandı: {}", evet);
+            Thread.sleep(1500);
+
+            // 3. Commit doğrula: ABF uyarısı çıkmadı + Onay dialogu kapandı
+            long deadline = System.currentTimeMillis() + 8000L;
+            while (System.currentTimeMillis() < deadline) {
+                Boolean warn = (Boolean) js.executeScript(
+                        "var cards = document.querySelectorAll('vaadin-notification-card');" +
+                        "for (var c of cards){ var t=(c.textContent||'').toLowerCase();" +
+                        "  if (t.includes('abf') && t.includes('onayla')) return true; }" +
+                        "return false;");
+                if (Boolean.TRUE.equals(warn)) {
+                    log.warn("ABF uyarısı çıktı — commit olmadı (checkbox işaretlenememiş olabilir).");
+                    return false;
+                }
+                Boolean onayOpen = (Boolean) js.executeScript(
+                        "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                        "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                        "for (var o of ovs){ var t=(o.textContent||'').toLowerCase();" +
+                        "  if (t.includes('abf belgesini okudum') || t.includes(\"abf'yi\")) return true; }" +
+                        "return false;");
+                if (!Boolean.TRUE.equals(onayOpen)) {
+                    log.info("Onay dialogu kapandı — kabul commit oldu.");
+                    return true;
+                }
+                Thread.sleep(500);
+            }
+            log.warn("Onay dialogu kapanmadı — commit doğrulanamadı.");
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception e) {
+            log.warn("checkAbfAndConfirmAccept: {}", e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Kabul onayı sonrası ekranda görünen bordro numarasını yakalar.
      * Bildirim toast'ı, açık dialog ve sayfa gövdesini "bordro" kelimesi
      * çevresindeki alfasayısal değer için tarar.
@@ -603,32 +716,62 @@ public class CompanyQuickOfferPage extends BasePageObject {
     public String captureBordroNo() {
         try {
             Object found = ((JavascriptExecutor) driver).executeScript(
+                    // ⚠️ SADECE taze kaynaklar: kabul sonrası açılan bildirim toast'ı ve dialog.
+                    // document.body.innerText KULLANILMAZ — sayfada duran ESKİ bir bordroyu
+                    // yakalayıp kabul BAŞARISIZ olsa bile yanlış pozitif üretiyordu (#5798 bulgusu).
                     "var sources = [];" +
                     "var cards = document.querySelectorAll('vaadin-notification-card, vaadin-notification-container');" +
-                    "for (var c of cards) sources.push(c.textContent || '');" +
+                    "for (var c of cards) { var r=c.getBoundingClientRect(); if (r.width>2 && r.height>2) sources.push(c.textContent || ''); }" +
                     "var overlays = document.querySelectorAll('vaadin-dialog-overlay, vaadin-confirm-dialog-overlay');" +
-                    "for (var o of overlays) sources.push(o.textContent || '');" +
-                    "sources.push(document.body.innerText || '');" +
+                    "for (var o of overlays) { var ro=o.getBoundingClientRect(); if (ro.width>2) sources.push(o.textContent || ''); }" +
                     // Bordro no formatı (canlıda doğrulandı): A2026_77768 — harf + yıl + '_' + sıra.
-                    // Genel desen tarih (02.07.2026) gibi değerleri yanlış yakalıyordu.
                     "var reStrict = /bordro\\s*(?:no|numaras[ıi])?\\s*[:#]?\\s*([A-Z]\\d{4}_\\d{2,})/i;" +
                     "var reAny = /([A-Z]\\d{4}_\\d{2,})/;" +
-                    "for (var s of sources) {" +
-                    "  var m = s.match(reStrict);" +
-                    "  if (m && m[1]) return m[1];" +
-                    "}" +
-                    "for (var s2 of sources) {" +
-                    "  var m2 = s2.match(reAny);" +
-                    "  if (m2 && m2[1]) return m2[1];" +
-                    "}" +
+                    "for (var s of sources) { var m = s.match(reStrict); if (m && m[1]) return m[1]; }" +
+                    // reAny sadece bu taze kaynaklar içinde (whole-body DEĞİL).
+                    "for (var s2 of sources) { var m2 = s2.match(reAny); if (m2 && m2[1]) return m2[1]; }" +
                     "return null;");
             String bordroNo = found != null ? found.toString().trim() : null;
-            log.info("Bordro no yakalama sonucu: {}", bordroNo);
+            log.info("Bordro no yakalama sonucu (taze kaynak): {}", bordroNo);
             return bordroNo;
         } catch (Exception e) {
             log.warn("captureBordroNo: {}", e.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Teklif kabulünü yapar ve taze bordro toast'ı görünene kadar retry eder.
+     * Kabul akışı Vaadin timing nedeniyle bazen commit olmuyordu (auction WAITING kalıyor);
+     * her denemede kabul + onay tekrarlanır, taze bordro yakalanınca döner (#5798 fix).
+     *
+     * @return yakalanan bordro no; hiçbir denemede taze bordro çıkmazsa null
+     */
+    public String acceptOfferWithRetryAndCapture(int maxAttempts) {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                log.info("Teklif kabul denemesi {}/{}", attempt, maxAttempts);
+                if (!clickKabulIptal()) {
+                    log.warn("Deneme {}: Kabul/İptal açılamadı.", attempt);
+                    continue;
+                }
+                // Kabul edilen auction'ın bordrosunu Kabul/İptal modalından yakala (bu run'a ait).
+                String bordro = captureBordroNo();
+                acceptFirstOfferInModal();          // "Kabul Et" → "Onay" dialogu açılır
+                boolean committed = checkAbfAndConfirmAccept();  // ABF işaretle + Evet + commit doğrula
+                if (committed) {
+                    // Commit sonrası bordro hâlâ yakalanabiliyorsa güncelle
+                    String after = captureBordroNo();
+                    if (after != null) bordro = after;
+                    log.info("Kabul COMMIT doğrulandı — bordro: {} (deneme {})", bordro, attempt);
+                    return bordro;
+                }
+                log.warn("Deneme {}: kabul commit olmadı, tekrar denenecek.", attempt);
+            } catch (Exception e) {
+                log.warn("acceptOfferWithRetryAndCapture deneme {}: {}", attempt, e.getMessage());
+            }
+        }
+        return null;
     }
 
     /** Fatura listesinde en az bir anlamlı hücre var mı (boş grid = false). */
