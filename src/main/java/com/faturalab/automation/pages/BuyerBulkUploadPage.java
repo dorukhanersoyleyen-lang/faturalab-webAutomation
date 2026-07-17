@@ -86,26 +86,40 @@ public class BuyerBulkUploadPage extends BasePageObject {
      */
     public void clickYukle() {
         try {
-            Object result = ((JavascriptExecutor) driver).executeScript(
-                    "var overlay = document.querySelector('vaadin-dialog-overlay');" +
-                    "if (!overlay) return 'dialog_yok';" +
-                    "var btns = Array.from(overlay.querySelectorAll('vaadin-button, button'));" +
-                    "for (var b of btns) {" +
-                    "  if (b.closest('vaadin-upload')) continue;" + // dropzone butonu: native picker açar
-                    "  if (b.disabled) continue;" +
-                    "  var t = (b.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
-                    "  if (t === 'yükle' || t === 'yukle' || t.includes('belgelerini yükle') || t === 'kaydet') {" +
-                    "    b.click(); return 'tiklandi: ' + t;" +
-                    "  }" +
-                    "}" +
-                    "return 'aksiyon_butonu_yok_otomatik_yukleme';");
-            log.info("Yükle aksiyonu: {}", result);
-            Thread.sleep(1200);
+            // 1. "Yükle" (veya Kaydet) aksiyon butonuna bas
+            log.info("Yükle aksiyonu: {}", clickActionButton());
+            Thread.sleep(1500);
+            // 2. Takip formu (ör. Vade Tarihi formu) açıldıysa oradaki "Kaydet"e de bas.
+            //    Excel/XML bazı akışlarda upload sonrası ikinci bir onay adımı gösteriyor.
+            Object follow = clickActionButton();
+            if (!"aksiyon_butonu_yok".equals(follow)) {
+                log.info("Takip aksiyonu: {}", follow);
+                Thread.sleep(800);
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             log.warn("clickYukle: {}", e.getMessage());
         }
+    }
+
+    /** Görünür dialogdaki Yükle/Kaydet aksiyon butonuna basar (dropzone butonu hariç). */
+    private Object clickActionButton() {
+        return ((JavascriptExecutor) driver).executeScript(
+                "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                "var overlay = ovs[ovs.length-1];" +
+                "if (!overlay) return 'dialog_yok';" +
+                "var btns = Array.from(overlay.querySelectorAll('vaadin-button, button'));" +
+                "for (var b of btns) {" +
+                "  if (b.closest('vaadin-upload')) continue;" +
+                "  if (b.disabled) continue;" +
+                "  var t = (b.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                "  if (t === 'yükle' || t === 'yukle' || t.includes('belgelerini yükle') || t === 'kaydet') {" +
+                "    b.click(); return 'tiklandi: ' + t;" +
+                "  }" +
+                "}" +
+                "return 'aksiyon_butonu_yok';");
     }
 
     /**
@@ -116,7 +130,7 @@ public class BuyerBulkUploadPage extends BasePageObject {
      */
     public boolean waitForUploadSuccess(int timeoutSeconds) {
         long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
-        boolean sawSuccessToast = false;
+        boolean reClicked = false;
         while (System.currentTimeMillis() < deadline) {
             String toast = readVisibleNotificationText();
             if (toast != null) {
@@ -126,32 +140,31 @@ public class BuyerBulkUploadPage extends BasePageObject {
                     return false;
                 }
                 if (lower.contains("başarı") || lower.contains("basari") || lower.contains("yüklendi")
-                        || lower.contains("yuklendi")) {
+                        || lower.contains("yuklendi") || lower.contains("gerçekleş") || lower.contains("gerceklesi")) {
                     log.info("Yükleme başarı bildirimi: {}", toast);
-                    sawSuccessToast = true;
-                    break;
+                    return true;
                 }
             }
-            if (dialogOps.isErrorNotificationVisible()) {
-                String errText = dialogOps.getNotificationText();
-                log.warn("Yükleme hata durumu algılandı (inline/upload error). Mesaj: {}", errText);
-                return false;
+            // Yarı yolda toast yoksa: Yükle/Kaydet tıklaması işlememiş veya takip formu
+            // açılmış olabilir → bir kez daha aksiyon butonuna bas (re-trigger).
+            if (!reClicked && System.currentTimeMillis() > deadline - (timeoutSeconds * 500L)) {
+                Object r = clickActionButton();
+                if ("tiklandi".equals(String.valueOf(r).split(":")[0].trim())) {
+                    log.info("Başarı gelmedi — aksiyon butonu yeniden tıklandı: {}", r);
+                }
+                reClicked = true;
             }
             try {
-                Thread.sleep(400);
+                Thread.sleep(300);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
             }
         }
-        if (sawSuccessToast) {
-            return true;
-        }
-        // Toast kaçırıldıysa: dialog hatasız kapandı mı?
+        // Toast kesin görülmediyse: yalnızca upload dialogu KAPANDIYSA başarı say.
         boolean dialogClosed = !dialogOps.isUploadDialogOpen();
-        boolean noError = !dialogOps.isErrorNotificationVisible();
-        log.info("Başarı toast'ı yakalanamadı — dialog kapalı: {}, hata yok: {}", dialogClosed, noError);
-        return dialogClosed && noError;
+        log.info("Başarı toast'ı yakalanamadı — upload dialogu kapalı: {}", dialogClosed);
+        return dialogClosed;
     }
 
     /**

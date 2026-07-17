@@ -671,31 +671,53 @@ public class CompanyQuickOfferPage extends BasePageObject {
             log.info("'Evet' tıklandı: {}", evet);
             Thread.sleep(1500);
 
-            // 3. Commit doğrula: ABF uyarısı çıkmadı + Onay dialogu kapandı
-            long deadline = System.currentTimeMillis() + 8000L;
+            // 3. Commit doğrula — GERÇEK başarı toast'ı: "Teklif talebi başarıyla tamamlandı".
+            //    "Evet" sonrası ara dialog (Cari Hesap seçimi / hizmet bedeli>0 ise ödeme)
+            //    açılabilir; asıl acceptOffer commit'i o dialog tamamlanınca oluyor (kaynak kod
+            //    CompanyAuctionConfirmDialog:280-320 success(CurrentAccount) callback). Ara dialogu
+            //    genel onay butonuyla ilerlet, sonra gerçek başarı toast'ını bekle. Toast yoksa FAIL
+            //    (auction WAITING kalır — DB-dürüst sinyal, #5798).
+            long deadline = System.currentTimeMillis() + 15000L;
             while (System.currentTimeMillis() < deadline) {
+                // Gerçek başarı toast'ı?
+                Boolean success = (Boolean) js.executeScript(
+                        "var cards = document.querySelectorAll('vaadin-notification-card');" +
+                        "for (var c of cards){ var r=c.getBoundingClientRect(); if(r.width<2) continue;" +
+                        "  var t=(c.textContent||'').toLowerCase();" +
+                        "  if (t.includes('başarıyla tamamland') || t.includes('basariyla tamamland')" +
+                        "      || t.includes('gerçekleş') || t.includes('gerceklesi')) return true; }" +
+                        "return false;");
+                if (Boolean.TRUE.equals(success)) {
+                    log.info("Gerçek başarı toast'ı görüldü — kabul COMMIT oldu.");
+                    return true;
+                }
+                // ABF uyarısı?
                 Boolean warn = (Boolean) js.executeScript(
                         "var cards = document.querySelectorAll('vaadin-notification-card');" +
                         "for (var c of cards){ var t=(c.textContent||'').toLowerCase();" +
                         "  if (t.includes('abf') && t.includes('onayla')) return true; }" +
                         "return false;");
                 if (Boolean.TRUE.equals(warn)) {
-                    log.warn("ABF uyarısı çıktı — commit olmadı (checkbox işaretlenememiş olabilir).");
+                    log.warn("ABF uyarısı çıktı — commit olmadı.");
                     return false;
                 }
-                Boolean onayOpen = (Boolean) js.executeScript(
+                // Ara dialog (cari hesap/ödeme) açıldıysa: genel onay/seç/devam butonuna bas.
+                Object follow = js.executeScript(
                         "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
                         "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
-                        "for (var o of ovs){ var t=(o.textContent||'').toLowerCase();" +
-                        "  if (t.includes('abf belgesini okudum') || t.includes(\"abf'yi\")) return true; }" +
-                        "return false;");
-                if (!Boolean.TRUE.equals(onayOpen)) {
-                    log.info("Onay dialogu kapandı — kabul commit oldu.");
-                    return true;
+                        "var ov = ovs[ovs.length-1]; if(!ov) return 'yok';" +
+                        "var btns = ov.querySelectorAll('vaadin-button, button');" +
+                        "for (var b of btns){ if(b.disabled) continue;" +
+                        "  var t=(b.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                        "  if (t==='onayla'||t==='kaydet'||t==='devam'||t==='seç'||t==='sec'||t==='evet'||t==='tamam') {" +
+                        "    b.click(); return 'follow:'+t; } }" +
+                        "return 'buton_yok';");
+                if (String.valueOf(follow).startsWith("follow:")) {
+                    log.info("Ara dialog ilerletildi: {}", follow);
                 }
-                Thread.sleep(500);
+                Thread.sleep(600);
             }
-            log.warn("Onay dialogu kapanmadı — commit doğrulanamadı.");
+            log.warn("Gerçek başarı toast'ı gelmedi — kabul commit doğrulanamadı (WAITING kalmış olabilir).");
             return false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
