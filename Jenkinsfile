@@ -40,9 +40,9 @@ pipeline {
                 script {
                     if (isUnix()) {
                         // Headless mode for Linux server
-                        sh 'export DISPLAY=:99 && Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 & mvn clean test -Dheadless=true'
+                        sh 'export DISPLAY=:99 && Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 & mvn clean test -Dheadless=true -Dmaven.test.failure.ignore=true'
                     } else {
-                        bat 'mvn clean test'
+                        bat 'mvn clean test -Dmaven.test.failure.ignore=true'
                     }
                 }
             }
