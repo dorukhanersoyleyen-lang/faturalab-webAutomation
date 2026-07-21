@@ -19,6 +19,7 @@
     <cucumber.version>7.15.0</cucumber.version>
     <webdrivermanager.version>5.6.3</webdrivermanager.version>
     <testng.version>7.9.0</testng.version>
+    <maven.test.failure.ignore>false</maven.test.failure.ignore>
     <log4j.version>2.22.1</log4j.version>
     <allure.cucumber.version>2.25.0</allure.cucumber.version>
     <cucumber.reporting.version>5.7.7</cucumber.reporting.version>
@@ -226,7 +227,7 @@
           <systemPropertyVariables>
             <cucumber.filter.tags>${cucumber.filter.tags}</cucumber.filter.tags>
           </systemPropertyVariables>
-          <testFailureIgnore>false</testFailureIgnore>
+          <testFailureIgnore>${maven.test.failure.ignore}</testFailureIgnore>
           <includes>
             <include>**/*Runner.java</include>
           </includes>
