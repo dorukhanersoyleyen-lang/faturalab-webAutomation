@@ -258,6 +258,7 @@
               <jsonFiles>
                 <param>**/*.json</param>
               </jsonFiles>
+              <checkBuildResult>false</checkBuildResult>
             </configuration>
           </execution>
         </executions>
