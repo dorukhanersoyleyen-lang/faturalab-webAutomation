@@ -68,6 +68,16 @@ public class DriverFactory {
         options.setExperimentalOption("excludeSwitches", new String[]{"enable-automation"});
         options.setExperimentalOption("useAutomationExtension", false);
 
+        // ⚠️ Locale = Türkçe (ZORUNLU). CI sunucusu (dev_ci) sistem locale'i en_US olduğu için
+        //    Chrome varsayılan olarak İngilizce açılıyordu → Vaadin uygulaması İNGİLİZCE render
+        //    ediyor, tüm Türkçe metin locator'ları ("FATURA YÜKLE & SİL", "GİT", "E-posta adresi",
+        //    "Yeni Admin Ekle") eşleşmiyordu (TZF + UI testleri CI'da bu yüzden fail ediyordu;
+        //    lokalde Türkçe Chrome ile geçiyordu). tr-TR zorlanınca uygulama Türkçe açılır.
+        options.addArguments("--lang=tr-TR");
+        java.util.Map<String, Object> prefs = new java.util.HashMap<>();
+        prefs.put("intl.accept_languages", "tr-TR,tr");
+        options.setExperimentalOption("prefs", prefs);
+
         log.info("Chrome WebDriver initialized with options: {}", options);
         return new ChromeDriver(options);
     }
