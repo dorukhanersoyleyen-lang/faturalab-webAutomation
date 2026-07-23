@@ -19,6 +19,12 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '20', artifactNumToKeepStr: '5'))
     }
 
+    triggers {
+        // Her gun 08:00 (Istanbul) otomatik kosu + kod degisiminde SCM polling
+        cron('TZ=Europe/Istanbul\n0 8 * * *')
+        pollSCM('H/2 * * * *')
+    }
+
     stages {
         stage('Checkout') {
             steps {
