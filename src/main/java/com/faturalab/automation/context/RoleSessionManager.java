@@ -134,11 +134,21 @@ public class RoleSessionManager {
 
         // 3b. Geçişi doğrula: hâlâ admin Kullanıcılar ekranındaysak yanlış oturumla
         //     devam etmek tüm senaryoyu sessizce bozar — açık hata ver.
-        boolean switched = waitForJsCondition(driver, 15,
-                "return (document.body.innerText || '').indexOf('Yeni Admin Ekle') < 0;");
+        //     ⚠️ Zayıf negatif kontrol ("Yeni Admin Ekle yok") headless'ta yanıltıcı
+        //     pozitif verebiliyordu (impersonation aslında başarısızken hata 2 adım sonra
+        //     yanlış yerde patlıyordu). Güçlendirildi: Kullanıcılar ekranından GERÇEKTEN
+        //     çıktığımızı iki sinyalle doğrula — "Yeni Admin Ekle" YOK **ve** görünür GİT
+        //     butonu YOK. Impersonation başarısızsa GİT'ler hâlâ DOM'da → burada açık fail.
+        boolean switched = waitForJsCondition(driver, 20,
+                "var body=(document.body.innerText||'');" +
+                "var onAdminUsers = body.indexOf('Yeni Admin Ekle') >= 0;" +
+                "var hasGit = Array.from(document.querySelectorAll('vaadin-button')).some(function(b){" +
+                "  var t=(b.textContent||'').trim(); return t==='GİT'||t.toUpperCase()==='GIT';});" +
+                "return !onAdminUsers && !hasGit;");
         if (!switched) {
             throw new IllegalStateException("[" + role.getDisplayName()
-                    + "] impersonation doğrulanamadı — sayfa hâlâ admin Kullanıcılar ekranında. Hedef: " + email);
+                    + "] impersonation doğrulanamadı — sayfa hâlâ admin Kullanıcılar ekranında "
+                    + "(GİT butonları görünür / 'Yeni Admin Ekle' mevcut). Hedef: " + email);
         }
 
         // Oturumu kaydet
@@ -184,9 +194,17 @@ public class RoleSessionManager {
             waitForVaadinStatic(driver);
             log.info("[{}] Sekmeye tıklandı: {}", role.getDisplayName(), tabName);
 
-            // 4. Grid yüklenene kadar bekle — Vaadin grid asenkron render
-            waitForVaadinStatic(driver);
-            waitForVaadinStatic(driver); // 2x 1.5sn = 3sn toplam
+            // 4. Grid render'ını bekle — headless'ta Vaadin grid GEÇ render olur.
+            //    Sabit sleep yerine GİT butonu / filtre header'ı görünene kadar POLL et:
+            //    headless=false'da anında döner; headless=true'da render'ı gerçekten bekler.
+            //    (Asıl headless fail'inin kök nedeni: stratejiler grid render OLMADAN koşuyordu.)
+            boolean gridReady = waitForJsCondition(driver, 25,
+                "var gits = Array.from(document.querySelectorAll('vaadin-button')).some(function(b){" +
+                "  var t=(b.textContent||'').trim(); return t==='GİT'||t.toUpperCase()==='GIT';});" +
+                "var headers = document.querySelectorAll('vaadin-grid-cell-content .filter-header-cell').length>0;" +
+                "return gits || headers;");
+            log.info("[{}] Kullanıcılar grid hazır mı (GİT/filtre header): {}", role.getDisplayName(), gridReady);
+            waitForVaadinStatic(driver); // render'ın oturması için kısa ek bekleme
 
             // Sayfadaki tüm butonları logla (debug)
             Object allBtns2 = js.executeScript(

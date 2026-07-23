@@ -34,16 +34,16 @@ pipeline {
             }
         }
 
-        stage('Test: Fatura API + Yukleme (yesil kapsam)') {
+        stage('Test: Fatura API + Yukleme + TZF') {
             steps {
-                echo '🧪 Fatura API + Yukleme (gecen kapsam) testleri kosuluyor...'
+                echo '🧪 Fatura API + Yukleme + TZF testleri kosuluyor...'
                 // -Dcucumber.filter.tags runner tag'ini override eder → sadece @api
                 // verify fazi maven-cucumber-reporting ile extended raporu uretir
                 // testFailureIgnore: test fail'i pipeline'i hard-fail etmez (junit sonucu UNSTABLE yapar)
                 sh '''
                     export DISPLAY=:99
                     Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="@fatura and not @company and not @onay"
+                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf"
                 '''
             }
         }
