@@ -124,7 +124,11 @@ public class TzfIslemUATStepDefs {
 
     @Then("faturaların başarıyla yüklendiği doğrulanır")
     public void faturaYuklemeDogrulanir() {
-        boolean success = getBuyerUploadPage().waitForUploadSuccess(40);
+        // CI (headless, dev_ci) lokalden belirgin yavaş — sunucu işleme + toast/dialog-kapanma
+        // penceresi 40sn'de bazen yetişmiyordu (build #41: dialog poll penceresi içinde
+        // kapanmadı). 60sn'e çıkarıldı; asıl dayanıklılık fix'i BuyerBulkUploadPage'de
+        // dialog-kapanma kontrolünün artık döngü boyunca sürekli yapılması.
+        boolean success = getBuyerUploadPage().waitForUploadSuccess(60);
         Assert.assertTrue(success,
                 "Fatura yükleme başarı bildirimi görülmedi (veya hata bildirimi geldi)");
     }

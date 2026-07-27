@@ -763,6 +763,30 @@ public class CompanyQuickOfferPage extends BasePageObject {
     }
 
     /**
+     * Commit toast'ı görüldükten SONRA bordro numarasını POLL eder. Backend commit
+     * (bordro üretimi) UI başarı toast'ından biraz geç tamamlanabiliyor — özellikle
+     * CI'da (headless, dev_ci lokalden yavaş) bu gecikme belirginleşiyor. Tek seferlik
+     * okuma null dönerse HEMEN vazgeçmek yerine kısa aralıklı retry ile null→değer
+     * geçişini yakalar (Jenkins build #42 flake fix).
+     *
+     * @return yakalanan bordro no; süre içinde hâlâ null ise null
+     */
+    private String pollForBordroNo(long timeoutMs) {
+        long deadline = System.currentTimeMillis() + timeoutMs;
+        String bordro = captureBordroNo();
+        while (bordro == null && System.currentTimeMillis() < deadline) {
+            try {
+                Thread.sleep(700);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+            bordro = captureBordroNo();
+        }
+        return bordro;
+    }
+
+    /**
      * Teklif kabulünü yapar ve taze bordro toast'ı görünene kadar retry eder.
      * Kabul akışı Vaadin timing nedeniyle bazen commit olmuyordu (auction WAITING kalıyor);
      * her denemede kabul + onay tekrarlanır, taze bordro yakalanınca döner (#5798 fix).
@@ -782,8 +806,12 @@ public class CompanyQuickOfferPage extends BasePageObject {
                 acceptFirstOfferInModal();          // "Kabul Et" → "Onay" dialogu açılır
                 boolean committed = checkAbfAndConfirmAccept();  // ABF işaretle + Evet + commit doğrula
                 if (committed) {
-                    // Commit sonrası bordro hâlâ yakalanabiliyorsa güncelle
-                    String after = captureBordroNo();
+                    // Backend commit (bordro üretimi) UI başarı toast'ından BİRAZ GEÇ
+                    // tamamlanabiliyor — CI'da (headless, dev_ci) bu gecikme daha belirgin
+                    // (build #42: toast görüldü ama tek seferlik okuma null döndürdü).
+                    // Toast görüldükten SONRA bordro null döndükçe kısa aralıklarla POLL et;
+                    // hemen fail etme.
+                    String after = pollForBordroNo(12000L);
                     if (after != null) bordro = after;
                     log.info("Kabul COMMIT doğrulandı — bordro: {} (deneme {})", bordro, attempt);
                     return bordro;

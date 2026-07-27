@@ -154,6 +154,16 @@ public class BuyerBulkUploadPage extends BasePageObject {
                 }
                 reClicked = true;
             }
+            // CI (headless, dev_ci) toast'ı kısa ömürlü olduğundan kaçırabilir — hata toast'ı
+            // görülmeden dialog kapandıysa bunu da başarı say. Eskiden bu kontrol yalnızca
+            // döngü BİTTİKTEN sonra (deadline dolunca) yapılıyordu; CI'da server işleme geç
+            // bitip dialog deadline'dan hemen ÖNCE kapandığında son-anlık tek kontrol bunu
+            // kaçırıyordu (build #41). Şimdi her turda kontrol edilir → dialog ne zaman
+            // kapanırsa kapansın (hata görülmeden) hemen yakalanır.
+            if (!dialogOps.isUploadDialogOpen()) {
+                log.info("Upload dialogu hata görülmeden kapandı (deneme sırasında) — başarı say.");
+                return true;
+            }
             try {
                 Thread.sleep(300);
             } catch (InterruptedException e) {
