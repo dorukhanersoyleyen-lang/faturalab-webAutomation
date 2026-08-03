@@ -524,6 +524,141 @@ public class CompanyQuickOfferPage extends BasePageObject {
         }
     }
 
+    /**
+     * İşlemdekiler gridinde EN YENİ (en büyük numaralı) bordroyu döner.
+     *
+     * Bu, testin kendi az önce oluşturduğu teklif talebidir: bordro numaraları
+     * artan sırada üretilir ve tedarikçinin listesinde yalnızca kendi talepleri
+     * bulunur. "İlk satır" varsayımı YANLIŞ — grid sıralaması eski/teklifsiz
+     * talepleri öne alabiliyor (CI'da TZF-001 flaky'sinin kök nedeni buydu).
+     *
+     * @return bordro no (ör. A2026_78207); bulunamazsa null
+     */
+    public String findLatestBordroInGrid() {
+        try {
+            Object r = ((JavascriptExecutor) driver).executeScript(
+                    "var cells = Array.from(document.querySelectorAll('vaadin-grid-cell-content'));" +
+                    "var re = /([A-Z]\\d{4}_(\\d{2,}))/;" +
+                    "var best = null, bestNum = -1;" +
+                    "for (var c of cells) {" +
+                    "  var rc = c.getBoundingClientRect(); if (rc.width < 2 || rc.height < 2) continue;" +
+                    "  var m = (c.textContent || '').match(re);" +
+                    "  if (!m) continue;" +
+                    "  var n = parseInt(m[2], 10);" +
+                    "  if (n > bestNum) { bestNum = n; best = m[1]; }" +
+                    "}" +
+                    "return best;");
+            String bordro = r != null ? r.toString().trim() : null;
+            log.info("İşlemdekiler'de en yeni bordro: {}", bordro);
+            return bordro;
+        } catch (Exception e) {
+            log.warn("findLatestBordroInGrid: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Verilen bordronun BULUNDUĞU SATIRDAKİ "Kabul / İptal" butonuna basar.
+     * (Sadece "ilk satır"a basmak yanlış auction'ı açıyordu — #TZF CI flaky fix.)
+     */
+    public boolean clickKabulIptalForBordro(String bordroNo) {
+        try {
+            Object result = ((JavascriptExecutor) driver).executeScript(
+                    "var target = arguments[0];" +
+                    "var cells = Array.from(document.querySelectorAll('vaadin-grid-cell-content'));" +
+                    "var idx = -1;" +
+                    "for (var i = 0; i < cells.length; i++) {" +
+                    "  var rc = cells[i].getBoundingClientRect(); if (rc.width < 2) continue;" +
+                    "  if ((cells[i].textContent || '').indexOf(target) >= 0) { idx = i; break; }" +
+                    "}" +
+                    "if (idx < 0) return 'bordro_hucresi_yok';" +
+                    "function isKabulIptal(b) {" +
+                    "  if (b.disabled) return false;" +
+                    "  var t = (b.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "  if (!(t.indexOf('kabul') >= 0 && (t.indexOf('iptal') >= 0 || t.indexOf('/') >= 0))) return false;" +
+                    "  var r = b.getBoundingClientRect(); return r.width > 2 && r.height > 2;" +
+                    "}" +
+                    // Aynı satır: bordro hücresinin komşu hücrelerinde ara (önce ileri, sonra geri)
+                    "for (var j = idx; j < Math.min(cells.length, idx + 14); j++) {" +
+                    "  var bs = cells[j].querySelectorAll('vaadin-button, button');" +
+                    "  for (var b of bs) { if (isKabulIptal(b)) { b.click(); return 'satir_ileri'; } }" +
+                    "}" +
+                    "for (var k = Math.max(0, idx - 14); k < idx; k++) {" +
+                    "  var bs2 = cells[k].querySelectorAll('vaadin-button, button');" +
+                    "  for (var b2 of bs2) { if (isKabulIptal(b2)) { b2.click(); return 'satir_geri'; } }" +
+                    "}" +
+                    "return 'buton_yok';",
+                    bordroNo);
+            log.info("Kabul/İptal tıklama ({}): {}", bordroNo, result);
+            if ("satir_ileri".equals(result) || "satir_geri".equals(result)) {
+                Thread.sleep(1200);
+                return true;
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            log.warn("clickKabulIptalForBordro ({}): {}", bordroNo, e.getMessage());
+        }
+        return false;
+    }
+
+    /** Görünür dialogu "Kapat"/"İptal" ile kapatır (tekrar denemeden önce temiz durum). */
+    public void closeVisibleDialog() {
+        try {
+            ((JavascriptExecutor) driver).executeScript(
+                    "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                    "var ov = ovs[ovs.length-1]; if(!ov) return false;" +
+                    "var btns = ov.querySelectorAll('vaadin-button, button');" +
+                    "for (var b of btns) {" +
+                    "  var t = (b.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "  if (t === 'kapat' || t === 'iptal' || t === 'i̇ptal') { b.click(); return true; }" +
+                    "}" +
+                    "return false;");
+            Thread.sleep(800);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception ignored) {
+        }
+    }
+
+    /**
+     * KENDİ bordromuzun teklifini kabul eder ve commit'i doğrular.
+     *
+     * Akış: bordronun satırındaki Kabul/İptal → "Kabul Et" (poll'lu) → ABF + Evet
+     * + gerçek başarı toast'ı. Teklif henüz düşmemişse modal kapatılıp beklenir
+     * ve tekrar denenir (otobit teklifi gecikmeli düşebilir).
+     *
+     * @return commit doğrulandıysa bordro no; aksi halde null
+     */
+    public String acceptOfferForBordro(String bordroNo, int maxAttempts) {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            try {
+                log.info("Kabul denemesi {}/{} — bordro {}", attempt, maxAttempts, bordroNo);
+                if (!clickKabulIptalForBordro(bordroNo)) {
+                    log.warn("Deneme {}: bordro {} satırında Kabul/İptal açılamadı.", attempt, bordroNo);
+                    Thread.sleep(3000);
+                    continue;
+                }
+                if (acceptFirstOfferInModal() && checkAbfAndConfirmAccept()) {
+                    log.info("Kabul COMMIT doğrulandı — bordro {} (deneme {})", bordroNo, attempt);
+                    return bordroNo;
+                }
+                // Teklif henüz düşmemiş olabilir: modalı kapat, bekle, tekrar dene
+                log.warn("Deneme {}: bordro {} için teklif kabul edilemedi (teklif düşmemiş olabilir).",
+                        attempt, bordroNo);
+                closeVisibleDialog();
+                Thread.sleep(10000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception e) {
+                log.warn("acceptOfferForBordro deneme {}: {}", attempt, e.getMessage());
+            }
+        }
+        return null;
+    }
+
     /** İşlemdekiler listesinde ilk satırın "Kabul / İptal" butonuna basar. */
     public boolean clickKabulIptal() {
         try {

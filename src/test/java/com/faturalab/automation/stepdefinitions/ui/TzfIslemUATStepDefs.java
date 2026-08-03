@@ -178,14 +178,33 @@ public class TzfIslemUATStepDefs {
 
     @And("işlemdekiler sayfasında ilk teklif kabul edilir ve onaylanır")
     public void islemdekilerdeTeklifKabulEdilir() {
-        // Kabul + onay + taze bordro doğrulaması retry ile (#5798 fix).
-        // Taze bordro toast'ı gelmezse kabul commit olmamıştır (auction WAITING) → null → FAIL.
-        String bordroNo = getOfferPage().acceptOfferWithRetryAndCapture(3);
-        TzfScenarioContext.setBordroNo(bordroNo);
-        Assert.assertNotNull(bordroNo,
-                "Teklif kabulü commit olmadı — kabul sonrası taze bordro toast'ı gelmedi "
-                + "(auction WAITING kalmış olabilir).");
-        log.info("[TZF] Kabul commit oldu, taze bordro: {}", bordroNo);
+        CompanyQuickOfferPage page = getOfferPage();
+
+        // 1) KENDİ talebimizin bordrosu = gridde en yeni (max numaralı) bordro.
+        //    "İlk satır"a basmak CI'da eski/teklifsiz bir talebi açıyordu → "Kabul Et"
+        //    bulunamıyordu (build #52/#53 kök nedeni). Grid render için poll edilir.
+        String bordro = null;
+        long deadline = System.currentTimeMillis() + 20000L;
+        while (System.currentTimeMillis() < deadline && bordro == null) {
+            bordro = page.findLatestBordroInGrid();
+            if (bordro == null) {
+                try { Thread.sleep(1000); } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt(); break;
+                }
+            }
+        }
+        Assert.assertNotNull(bordro,
+                "İşlemdekiler listesinde teklif talebi (bordro) satırı görünmedi");
+        TzfScenarioContext.setBordroNo(bordro);
+        log.info("[TZF] Kendi teklif talebimiz: {}", bordro);
+
+        // 2) O bordronun teklifini kabul et; commit gerçek başarı toast'ıyla doğrulanır.
+        //    Teklif gecikmeli düşerse modal kapatılıp yeniden denenir.
+        String committed = page.acceptOfferForBordro(bordro, 3);
+        Assert.assertNotNull(committed,
+                "Teklif kabulü commit olmadı — bordro " + bordro + " (teklif düşmemiş veya "
+                + "kabul sunucuya işlememiş olabilir; auction WAITING kalır).");
+        log.info("[TZF] Kabul commit oldu, bordro: {}", committed);
     }
 
     @Then("bordro numarası yakalanır")
