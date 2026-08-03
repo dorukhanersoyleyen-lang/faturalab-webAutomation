@@ -625,11 +625,16 @@ public class CompanyQuickOfferPage extends BasePageObject {
     /**
      * KENDİ bordromuzun teklifini kabul eder ve commit'i doğrular.
      *
-     * Akış: bordronun satırındaki Kabul/İptal → "Kabul Et" (poll'lu) → ABF + Evet
-     * + gerçek başarı toast'ı. Teklif henüz düşmemişse modal kapatılıp beklenir
-     * ve tekrar denenir (otobit teklifi gecikmeli düşebilir).
+     * Akış: bordronun satırındaki Kabul/İptal → "Kabul Et" → ABF onayı + Evet
+     * + gerçek başarı toast'ı.
      *
-     * @return commit doğrulandıysa bordro no; aksi halde null
+     * ⚠️ OTOBİT SENKRONDUR (kaynak kod: AuctionModel.makeAutoBidsOfAuctionWithSession
+     * startAuctionWithSession ile AYNI transaction'da; cron'da otobit job'ı YOK).
+     * Teklif, talep oluşurken ya üretilir ya hiç üretilmez — BEKLEMEKLE GELMEZ.
+     * Bu yüzden retry yalnızca UI render/JS-click kırılganlığı içindir (kısa aralık),
+     * teklifin düşmesini beklemek için değil.
+     *
+     * @return commit doğrulandıysa bordro no; aksi halde null (neden loglanır)
      */
     public String acceptOfferForBordro(String bordroNo, int maxAttempts) {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -637,18 +642,16 @@ public class CompanyQuickOfferPage extends BasePageObject {
                 log.info("Kabul denemesi {}/{} — bordro {}", attempt, maxAttempts, bordroNo);
                 if (!clickKabulIptalForBordro(bordroNo)) {
                     log.warn("Deneme {}: bordro {} satırında Kabul/İptal açılamadı.", attempt, bordroNo);
-                    Thread.sleep(3000);
+                    Thread.sleep(2500);
                     continue;
                 }
                 if (acceptFirstOfferInModal() && checkAbfAndConfirmAccept()) {
                     log.info("Kabul COMMIT doğrulandı — bordro {} (deneme {})", bordroNo, attempt);
                     return bordroNo;
                 }
-                // Teklif henüz düşmemiş olabilir: modalı kapat, bekle, tekrar dene
-                log.warn("Deneme {}: bordro {} için teklif kabul edilemedi (teklif düşmemiş olabilir).",
-                        attempt, bordroNo);
+                log.warn("Deneme {}: bordro {} kabul edilemedi.", attempt, bordroNo);
                 closeVisibleDialog();
-                Thread.sleep(10000);
+                Thread.sleep(2500);   // modal/grid yeniden render için — teklif beklemek için DEĞİL
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 break;
@@ -656,7 +659,44 @@ public class CompanyQuickOfferPage extends BasePageObject {
                 log.warn("acceptOfferForBordro deneme {}: {}", attempt, e.getMessage());
             }
         }
+        log.error("KABUL EDİLEMEDİ — bordro {}. {}", bordroNo, noOfferDiagnostics());
         return null;
+    }
+
+    /**
+     * "Kabul Et" bulunamadığında teşhis metni üretir.
+     *
+     * Kaynak kod (CompanyAuctionApprovalDialog:428) teklif satırını
+     * {@code if (!offer.isOffered()) return new HorizontalLayout();} ile boş render eder —
+     * yani Kabul Et'in yokluğu = o teklif için otobit ÜRETİLMEMİŞ (auctionoffer.offered=false,
+     * amount=null). Otobit'in elenme nedenleri (AuctionModel.makeAutoBidsOfAuctionWithSession):
+     * minParticipationAmountLimit altı tutar, bidRate null (barem/kriter tablosu satırı yok),
+     * vade tatile denk gelmesi, limit yetersizliği, FK cut-off saati, GİB doğrulaması,
+     * buyer.factoringPrioritizationType (ROUND_ROBIN'de her koşumda farklı FK seçilir).
+     */
+    public String noOfferDiagnostics() {
+        try {
+            Object dump = ((JavascriptExecutor) driver).executeScript(
+                    "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                    "var ov = ovs[ovs.length-1];" +
+                    "if(!ov) return 'modal_kapali';" +
+                    "return Array.from(ov.querySelectorAll('vaadin-button, button'))" +
+                    "  .map(function(b){return (b.textContent||'').replace(/\\s+/g,' ').trim();})" +
+                    "  .filter(function(t){return t.length>0;}).join(' | ');");
+            String s = String.valueOf(dump);
+            boolean noOffer = s.contains("Teklif Talebini İptal Et") && !s.toLowerCase().contains("kabul et");
+            return "Modal butonları: [" + s + "]"
+                    + (noOffer
+                       ? " → TEKLİF YOK: otobit bu talep için teklif üretmemiş (offered=false). "
+                         + "Olası nedenler: minParticipationAmountLimit, bidRate/kriter tablosu satırı yok, "
+                         + "vade tatil günü, limit yetersiz, FK cut-off, GİB doğrulaması, "
+                         + "buyer.factoringPrioritizationType (ROUND_ROBIN). "
+                         + "DB ile doğrula: SELECT offered, amount, factoringid FROM auctionoffer WHERE auctionid=..."
+                       : " → Kabul Et render edilmiş ama tıklama/commit başarısız (UI kırılganlığı).");
+        } catch (Exception e) {
+            return "teşhis alınamadı: " + e.getMessage();
+        }
     }
 
     /** İşlemdekiler listesinde ilk satırın "Kabul / İptal" butonuna basar. */
@@ -727,9 +767,10 @@ public class CompanyQuickOfferPage extends BasePageObject {
                     "return false;");
             Thread.sleep(700);
 
-            // "Kabul Et" butonu — CI'da otobit teklifi TEKLİF AL'dan birkaç sn sonra
-            // düşebilir; buton görünene kadar POLL et (30 sn). (CI flaky kök nedeni #2)
-            long btnDeadline = System.currentTimeMillis() + 30000L;
+            // "Kabul Et" butonu — yalnızca MODAL RENDER gecikmesi için poll (10 sn).
+            // Otobit senkron olduğundan teklifin sonradan düşmesini beklemek anlamsız;
+            // 10 sn içinde çıkmazsa teklif zaten üretilmemiştir (noOfferDiagnostics).
+            long btnDeadline = System.currentTimeMillis() + 10000L;
             while (System.currentTimeMillis() < btnDeadline) {
                 Boolean accepted = (Boolean) js.executeScript(
                         "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +

@@ -202,8 +202,7 @@ public class TzfIslemUATStepDefs {
         //    Teklif gecikmeli düşerse modal kapatılıp yeniden denenir.
         String committed = page.acceptOfferForBordro(bordro, 3);
         Assert.assertNotNull(committed,
-                "Teklif kabulü commit olmadı — bordro " + bordro + " (teklif düşmemiş veya "
-                + "kabul sunucuya işlememiş olabilir; auction WAITING kalır).");
+                "Teklif kabulü commit olmadı — bordro " + bordro + ". " + page.noOfferDiagnostics());
         log.info("[TZF] Kabul commit oldu, bordro: {}", committed);
     }
 
