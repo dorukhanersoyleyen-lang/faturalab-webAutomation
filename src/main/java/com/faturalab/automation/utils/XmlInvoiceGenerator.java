@@ -136,6 +136,34 @@ public final class XmlInvoiceGenerator {
         }
     }
 
+    /**
+     * DFP (MARKET_PLACE) için 1,00 TL tutarlı dummy imzalı XML üretir.
+     * Şablon: testdata/dfp-isbank-invoice.xml — tutar seti sabit 1 TL
+     * (limit tüketimini minimumda tutmak için; İşbank Ted 1 MP limiti 50K).
+     * Tedarikçi VKN parametrik ({SUPPLIER_VKN}); alıcı ALBC (3456789010) —
+     * İşbank Ted 1'in ALBC ilişkisi DELETED olduğundan akış MARKET_PLACE'e düşer.
+     */
+    public static String generateDfpXml(String supplierVkn, String seqSuffix) {
+        try {
+            String year = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy"));
+            String stamp = java.time.LocalDateTime.now().format(STAMP);
+            String invoiceId = "ISB" + year + stamp.substring(2) + seqSuffix;
+            String content = fillTemplateFrom("testdata/dfp-isbank-invoice.xml", invoiceId)
+                    .replace("{SUPPLIER_VKN}", supplierVkn);
+
+            File outDir = ensureOutDir();
+            File xml = new File(outDir, invoiceId + ".xml");
+            Files.write(xml.toPath(), content.getBytes(StandardCharsets.UTF_8));
+            TzfScenarioContext.addInvoice(new TzfInvoice(
+                    TzfScenarioContext.getInvoices().size() + 1, invoiceId, "1.00", "", "", ""));
+            TzfScenarioContext.setExcelPath(xml.getAbsolutePath());
+            log.info("DFP 1TL XML üretildi: {} (VKN {}, {})", invoiceId, supplierVkn, xml.getAbsolutePath());
+            return xml.getAbsolutePath();
+        } catch (Exception e) {
+            throw new IllegalStateException("DFP XML üretimi başarısız: " + e.getMessage(), e);
+        }
+    }
+
     private static String fillTemplate(String invoiceId) throws Exception {
         return fillTemplateFrom("testdata/test-invoice.xml", invoiceId);
     }

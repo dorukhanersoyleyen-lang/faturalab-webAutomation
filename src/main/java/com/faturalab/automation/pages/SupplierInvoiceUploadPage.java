@@ -27,27 +27,49 @@ public class SupplierInvoiceUploadPage extends BasePageObject {
         this.dialogOps = new CompanyInvoicePage(driver);
     }
 
-    /** Tedarikçi ekranında "FATURA YÜKLE/ TALEP ET" dialogunu açar. */
+    /**
+     * Tedarikçi ekranında "FATURA YÜKLE/ TALEP ET" dialogunu açar.
+     * Impersonation hemen sonrası Vaadin hydrate olmadan JS click sunucuya
+     * işlemeyebilir → tıkla + dialog-açılış poll'u + retry (3 deneme).
+     */
     public boolean openUploadDialog() {
         tryOpenNavigationDrawer();
-        try {
-            Boolean clicked = (Boolean) ((JavascriptExecutor) driver).executeScript(
-                    "var btns = Array.from(document.querySelectorAll('vaadin-button, button'));" +
-                    "for (var b of btns) {" +
-                    "  var t = (b.textContent || '').toUpperCase().replace(/\\s+/g,' ').trim();" +
-                    "  if (t.includes('FATURA YÜKLE') || t.includes('FATURA YUKLE')) { b.click(); return true; }" +
-                    "}" +
-                    "return false;");
-            if (Boolean.TRUE.equals(clicked)) {
-                log.info("Tedarikçi 'FATURA YÜKLE/ TALEP ET' butonuna tıklandı.");
-                waitForVaadinNavigation();
-            } else {
-                log.warn("Tedarikçi fatura yükleme butonu bulunamadı.");
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                Boolean clicked = (Boolean) ((JavascriptExecutor) driver).executeScript(
+                        "var btns = Array.from(document.querySelectorAll('vaadin-button, button'));" +
+                        "for (var b of btns) {" +
+                        "  var r = b.getBoundingClientRect(); if (r.width < 2) continue;" +
+                        "  var t = (b.textContent || '').toUpperCase().replace(/\\s+/g,' ').trim();" +
+                        "  if (t.includes('FATURA YÜKLE') || t.includes('FATURA YUKLE')) { b.click(); return true; }" +
+                        "}" +
+                        "return false;");
+                if (!Boolean.TRUE.equals(clicked)) {
+                    Object dump = ((JavascriptExecutor) driver).executeScript(
+                            "return Array.from(document.querySelectorAll('vaadin-button, button, vaadin-side-nav-item, a'))" +
+                            ".map(function(b){var r=b.getBoundingClientRect(); if(r.width<2) return null;" +
+                            "  var t=(b.textContent||'').replace(/\\s+/g,' ').trim(); return t.length>0&&t.length<60?t:null;})" +
+                            ".filter(Boolean).join(' | ');");
+                    log.warn("Deneme {}: fatura yükleme butonu görünür değil. Butonlar: {}", attempt, dump);
+                    Thread.sleep(2000); // Vaadin hydrate bekle, tekrar dene
+                    continue;
+                }
+                log.info("Tedarikçi 'FATURA YÜKLE/ TALEP ET' tıklandı (deneme {}).", attempt);
+                // Dialog açılışını poll et (JS click işlememiş olabilir)
+                long deadline = System.currentTimeMillis() + 6000L;
+                while (System.currentTimeMillis() < deadline) {
+                    if (dialogOps.isUploadDialogOpen()) {
+                        return true;
+                    }
+                    Thread.sleep(500);
+                }
+                log.warn("Deneme {}: tıklandı ama dialog açılmadı — yeniden denenecek.", attempt);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 return false;
+            } catch (Exception e) {
+                log.warn("openUploadDialog deneme {}: {}", attempt, e.getMessage());
             }
-        } catch (Exception e) {
-            log.warn("openUploadDialog: {}", e.getMessage());
-            return false;
         }
         return dialogOps.isUploadDialogOpen();
     }
