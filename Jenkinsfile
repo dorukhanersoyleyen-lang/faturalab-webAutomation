@@ -8,10 +8,11 @@ pipeline {
 
     environment {
         // Jenkins credentials (ID'ler mevcut)
-        TEAMS_WEBHOOK      = credentials('teams-webhook-url')
-        NETLIFY_AUTH_TOKEN = credentials('netlify-auth-token')
-        NETLIFY_SITE_ID    = '6eef8988-c5f1-44b2-92cd-b8d594a9311c'
-        REPORT_DIR         = 'target/cucumber-reports/cucumber-html-reports'
+        TEAMS_WEBHOOK = credentials('teams-webhook-url')
+        REPORT_DIR    = 'target/cucumber-reports/cucumber-html-reports'
+        // Rapor kendi dev sunucumuzdan yayinlanir (nginx :8090, VPN ici — Netlify bagimliligi kaldirildi)
+        PUBLISH_ROOT  = '/var/www/qa-reports'
+        REPORT_URL    = 'http://192.168.97.33:8090/latest/'
     }
 
     options {
@@ -54,30 +55,26 @@ pipeline {
             }
         }
 
-        stage('Rapor: Netlify Deploy') {
+        stage('Rapor: Dev Sunucu Yayini') {
             steps {
-                script {
-                    // root URL calissin diye overview'i index.html yap
-                    sh "cp ${REPORT_DIR}/overview-features.html ${REPORT_DIR}/index.html 2>/dev/null || true"
-                    // Netlify'a deploy (token env'den otomatik okunur). Cikti netlify-out.json'a.
-                    def rc = sh(returnStatus: true, script: """
-                        npx --yes netlify-cli deploy --dir=${REPORT_DIR} --prod \
-                            --site=${NETLIFY_SITE_ID} --json > netlify-out.json 2> netlify-err.log
-                    """)
-                    if (rc == 0) {
-                        echo '✅ Netlify deploy tamam (link mail scriptinde netlify-out.json\'dan okunacak).'
-                    } else {
-                        echo '⚠️ Netlify deploy basarisiz/atlandi (mail Jenkins build linkine duser):'
-                        sh 'tail -5 netlify-err.log 2>/dev/null || true'
-                    }
-                }
+                // Jenkins dev_ci'de kosuyor → yayin = yerel kopya (dis bagimlilik/token yok).
+                // http://192.168.97.33:8090/latest/ her zaman son build; build-N gecmisi tutulur.
+                sh '''
+                    cp ${REPORT_DIR}/overview-features.html ${REPORT_DIR}/index.html 2>/dev/null || true
+                    DEST=${PUBLISH_ROOT}/build-${BUILD_NUMBER}
+                    mkdir -p "$DEST"
+                    cp -r ${REPORT_DIR}/. "$DEST"/
+                    ln -sfn "$DEST" ${PUBLISH_ROOT}/latest
+                    # Son 20 build'i tut, eskileri temizle
+                    ls -dt ${PUBLISH_ROOT}/build-* 2>/dev/null | tail -n +21 | xargs -r rm -rf
+                    echo "Rapor yayinda: ${REPORT_URL} (kalici: .../build-${BUILD_NUMBER}/)"
+                '''
             }
         }
 
         stage('Arsivle') {
             steps {
                 archiveArtifacts artifacts: 'target/cucumber-reports/**', allowEmptyArchive: true
-                archiveArtifacts artifacts: 'netlify-out.json', allowEmptyArchive: true
                 junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
             }
         }
@@ -88,8 +85,8 @@ pipeline {
             echo '📧 Rapor maili gonderiliyor...'
             script {
                 def result = currentBuild.currentResult   // SUCCESS / UNSTABLE / FAILURE
-                // Mail scripti: cucumber JSON'dan ozet + netlify-out.json'dan link + guzel HTML
-                sh "BUILD_RESULT='${result}' python3 ci/send_report_mail.py || true"
+                // Mail scripti: cucumber JSON'dan ozet + REPORT_URL (dev sunucu) linki + guzel HTML
+                sh "BUILD_RESULT='${result}' REPORT_URL='${REPORT_URL}' python3 ci/send_report_mail.py || true"
             }
             cleanWs()
         }
