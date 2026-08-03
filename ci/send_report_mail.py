@@ -1,19 +1,24 @@
 # -*- coding: utf-8 -*-
 """
 FaturaLab QA Otomasyon - test raporu mail gonderici (Jenkins pipeline'dan cagrilir).
-Cucumber JSON'dan ozet cikarir, guzel bir HTML mail olusturur ve ileti relay'inden gonderir.
+Cucumber JSON'dan ozet cikarir, Gunluk Prod Hata Raporu ile AYNI gorsel dilde
+(600px kart, CID inline FaturaLab logosu, NAVY baslik) HTML mail olusturur.
 
 Env degiskenleri (Jenkins saglar):
   JOB_NAME, BUILD_NUMBER, BUILD_URL, BUILD_RESULT (SUCCESS/UNSTABLE/FAILURE)
-  REPORT_URL   - Netlify public link (yoksa BUILD_URL fallback)
+  REPORT_URL   - dahili rapor linki (http://192.168.97.33:8090/latest/); yoksa BUILD_URL
   MAIL_TO      - virgullu alici listesi (varsayilan: 3 kisi)
 Calisma dizini repo koku (target/cucumber-reports/*.json okunur).
 """
-import os, sys, glob, json, smtplib
+import os, sys, glob, json, base64, smtplib
+from datetime import datetime
+from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
 from email.utils import formatdate, make_msgid
 sys.stdout.reconfigure(encoding='utf-8', errors='replace')
 
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SMTP_HOST = os.environ.get('SMTP_HOST', 'ileti.faturalab.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', '25'))
 MAIL_FROM = os.environ.get('MAIL_FROM', 'automationReport-noreply@ileti.faturalab.com')
@@ -26,21 +31,19 @@ JOB = os.environ.get('JOB_NAME', 'faturalab-webAutomation-pipeline')
 BUILD = os.environ.get('BUILD_NUMBER', '?')
 BUILD_URL = os.environ.get('BUILD_URL', '')
 RESULT = os.environ.get('BUILD_RESULT', 'UNKNOWN').upper()
+REPORT_URL = os.environ.get('REPORT_URL', '') or BUILD_URL
 
 
-def _report_url():
-    # 1) Netlify deploy ciktisi (netlify-out.json), 2) REPORT_URL env, 3) BUILD_URL fallback
+def esc(s):
+    return (str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'))
+
+
+def load_logo_b64():
     try:
-        d = json.load(open('netlify-out.json', encoding='utf-8'))
-        u = d.get('deploy_ssl_url') or d.get('deploy_url') or d.get('url')
-        if u:
-            return u
+        with open(os.path.join(SCRIPT_DIR, 'faturalab_logo.b64')) as f:
+            return f.read().strip()
     except Exception:
-        pass
-    return os.environ.get('REPORT_URL', '') or BUILD_URL
-
-
-REPORT_URL = _report_url()
+        return None
 
 
 def parse_cucumber():
@@ -72,69 +75,110 @@ def parse_cucumber():
     return total, passed, failed, features
 
 
-def build_html(total, passed, failed, features):
-    color = {'SUCCESS': '#2e7d32', 'UNSTABLE': '#f9a825', 'FAILURE': '#c62828'}.get(RESULT, '#546e7a')
-    badge = {'SUCCESS': 'BASARILI', 'UNSTABLE': 'KARARSIZ (bazi testler basarisiz)',
-             'FAILURE': 'BASARISIZ'}.get(RESULT, RESULT)
-    rate = f'{(passed/total*100):.0f}%' if total else '-'
-    rows = ''
-    for name, fp, ff in sorted(features, key=lambda x: -x[2]):
-        st = '#c62828' if ff else '#2e7d32'
-        rows += (f'<tr><td style="padding:6px 10px;border-bottom:1px solid #eee">{name}</td>'
-                 f'<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;color:#2e7d32">{fp}</td>'
-                 f'<td style="padding:6px 10px;border-bottom:1px solid #eee;text-align:center;color:{st};font-weight:bold">{ff}</td></tr>')
-    return f"""<!doctype html><html><body style="margin:0;background:#f4f6f8;font-family:Segoe UI,Arial,sans-serif;color:#263238">
-<div style="max-width:640px;margin:0 auto;padding:24px">
-  <div style="background:#0d47a1;border-radius:10px 10px 0 0;padding:22px 26px">
-    <div style="color:#fff;font-size:20px;font-weight:700">FaturaLab QA Otomasyon</div>
-    <div style="color:#bbdefb;font-size:13px;margin-top:2px">API &amp; Fatura Yukleme Test Raporu</div>
-  </div>
-  <div style="background:#fff;border-radius:0 0 10px 10px;padding:26px;box-shadow:0 1px 3px rgba(0,0,0,.1)">
-    <div style="display:inline-block;background:{color};color:#fff;font-weight:700;padding:6px 14px;border-radius:20px;font-size:13px">{badge}</div>
-    <table style="width:100%;margin:18px 0;border-collapse:collapse">
-      <tr>
-        <td style="text-align:center;padding:10px;background:#f4f6f8;border-radius:8px">
-          <div style="font-size:26px;font-weight:700">{total}</div><div style="font-size:12px;color:#607d8b">Toplam</div></td>
-        <td style="width:10px"></td>
-        <td style="text-align:center;padding:10px;background:#e8f5e9;border-radius:8px">
-          <div style="font-size:26px;font-weight:700;color:#2e7d32">{passed}</div><div style="font-size:12px;color:#607d8b">Gecti</div></td>
-        <td style="width:10px"></td>
-        <td style="text-align:center;padding:10px;background:#ffebee;border-radius:8px">
-          <div style="font-size:26px;font-weight:700;color:#c62828">{failed}</div><div style="font-size:12px;color:#607d8b">Kaldi</div></td>
-        <td style="width:10px"></td>
-        <td style="text-align:center;padding:10px;background:#f4f6f8;border-radius:8px">
-          <div style="font-size:26px;font-weight:700">{rate}</div><div style="font-size:12px;color:#607d8b">Basari</div></td>
-      </tr>
-    </table>
-    <div style="text-align:center;margin:22px 0">
-      <a href="{REPORT_URL}" style="background:#0d47a1;color:#fff;text-decoration:none;padding:12px 28px;border-radius:8px;font-weight:700;font-size:15px;display:inline-block">Detayli Raporu Goruntule &rarr;</a>
-    </div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:10px">
-      <thead><tr style="background:#eceff1"><th style="padding:8px 10px;text-align:left">Feature</th><th style="padding:8px 10px">Gecti</th><th style="padding:8px 10px">Kaldi</th></tr></thead>
-      <tbody>{rows or '<tr><td colspan=3 style="padding:10px;color:#607d8b">Feature ozeti yok</td></tr>'}</tbody>
-    </table>
-    <div style="margin-top:20px;font-size:12px;color:#90a4ae;border-top:1px solid #eee;padding-top:14px">
-      Job: {JOB} &nbsp;|&nbsp; Build #{BUILD} &nbsp;|&nbsp; Ortam: Dev<br>
-      Bu mail FaturaLab QA otomasyon pipeline'i tarafindan otomatik gonderilmistir.
-    </div>
-  </div>
-</div></body></html>"""
+def build_html(total, passed, failed, features, logo_ref):
+    # Gunluk Prod Hata Raporu ile ayni gorsel dil (renk sabitleri birebir)
+    NAVY = "#14489F"; CYAN = "#1487c7"; INK = "#1f2733"; MUT = "#6b7684"
+    LINE = "#dfe3e8"; HEADBG = "#f4f6f8"; CRIT = "#b23b3b"; BG = "#eceff2"; OK = "#1e7d43"
+
+    rate = f'{(passed / total * 100):.0f}%' if total else '—'
+    res_txt = {'SUCCESS': 'BAŞARILI', 'UNSTABLE': 'KARARSIZ', 'FAILURE': 'BAŞARISIZ'}.get(RESULT, RESULT)
+    res_col = {'SUCCESS': OK, 'UNSTABLE': '#b26a00', 'FAILURE': CRIT}.get(RESULT, MUT)
+    gen_dt = datetime.now().strftime('%d.%m.%Y %H:%M')
+
+    def frow(name, fp, ff, last):
+        bb = "" if last else f"border-bottom:1px solid {LINE};"
+        accent = CRIT if ff else OK
+        dot = (f'<span style="display:inline-block;width:6px;height:6px;border-radius:50%;'
+               f'background:{accent};margin-right:7px;vertical-align:middle"></span>')
+        ktag = (f'<span style="display:inline-block;margin-left:7px;padding:1px 6px;background:#f7e7e6;'
+                f'color:{CRIT};font:700 8px \'Segoe UI\',Arial;letter-spacing:.5px;border-radius:9px;'
+                f'vertical-align:middle">{ff} KALDI</span>' if ff else '')
+        return f"""<tr>
+<td style="padding:11px 12px 11px 0;{bb}vertical-align:top">
+  <div style="font:600 12px 'Segoe UI',Arial;color:{INK}">{dot}{esc(name)}{ktag}</div></td>
+<td align="right" style="padding:11px 12px;{bb}vertical-align:top;white-space:nowrap">
+  <span style="font:800 14px 'Segoe UI',Arial;color:{OK}">{fp}</span>
+  <span style="font:9px 'Segoe UI',Arial;color:{MUT}"> geçti</span></td>
+<td align="right" style="padding:11px 0;{bb}vertical-align:top;white-space:nowrap">
+  <span style="font:800 14px 'Segoe UI',Arial;color:{CRIT if ff else MUT}">{ff}</span>
+  <span style="font:9px 'Segoe UI',Arial;color:{MUT}"> kaldı</span></td></tr>"""
+
+    items = sorted(features, key=lambda x: -x[2])
+    head = f"""<tr>
+<th align="left" style="padding:7px 12px 7px 0;border-bottom:2px solid {NAVY};font:700 9px 'Segoe UI',Arial;letter-spacing:.8px;color:{MUT};text-transform:uppercase">Feature</th>
+<th align="right" style="padding:7px 12px;border-bottom:2px solid {NAVY};font:700 9px 'Segoe UI',Arial;letter-spacing:.8px;color:{MUT};text-transform:uppercase">Geçti</th>
+<th align="right" style="padding:7px 0;border-bottom:2px solid {NAVY};font:700 9px 'Segoe UI',Arial;letter-spacing:.8px;color:{MUT};text-transform:uppercase">Kaldı</th></tr>"""
+    body = ''.join(frow(n, fp, ff, ix == len(items) - 1) for ix, (n, fp, ff) in enumerate(items)) or \
+           f'<tr><td colspan="3" style="padding:12px 0;font:11px \'Segoe UI\',Arial;color:{MUT}">Feature özeti bulunamadı.</td></tr>'
+
+    return f"""<!doctype html><html><body style="margin:0;background:{BG};padding:24px 0">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border:1px solid {LINE};border-radius:8px;overflow:hidden">
+ <tr><td style="padding:22px 28px 16px">
+   <table width="100%"><tr>
+     <td align="left" style="vertical-align:middle"><img src="{logo_ref}" width="138" alt="FaturaLab" style="display:block"></td>
+     <td align="right" style="vertical-align:middle">
+       <span style="font:600 9px 'Segoe UI',Arial;letter-spacing:1px;color:{MUT}">ORTAM</span>
+       <span style="display:inline-block;margin-left:6px;padding:3px 10px;background:{NAVY};color:#fff;font:700 10px 'Segoe UI',Arial;letter-spacing:1.4px;border-radius:3px">DEV</span>
+     </td></tr></table>
+ </td></tr>
+ <tr><td style="padding:6px 28px 14px;text-align:left;border-bottom:3px solid {NAVY}">
+   <div style="font:700 17px 'Segoe UI',Arial;color:{INK};letter-spacing:.2px">Otomasyon Koşum Raporu</div>
+   <div style="font:11px 'Segoe UI',Arial;color:{MUT};margin-top:4px">{esc(JOB)} · Build #{esc(BUILD)} ·
+     <span style="font-weight:700;color:{res_col}">{res_txt}</span></div>
+ </td></tr>
+ <tr><td style="padding:16px 28px 0;text-align:left">
+   <div style="font:11px 'Segoe UI',Arial;color:{MUT}">
+     <b style="font-size:14px;color:{NAVY}">{total}</b> senaryo &nbsp;·&nbsp;
+     <b style="font-size:14px;color:{OK}">{passed}</b> geçti &nbsp;·&nbsp;
+     <b style="font-size:14px;color:{CRIT}">{failed}</b> kaldı &nbsp;·&nbsp;
+     <b style="font-size:14px;color:{NAVY}">{rate}</b> başarı</div>
+ </td></tr>
+ <tr><td style="padding:2px 28px 8px">
+   <div style="margin:24px 0 6px">
+     <span style="font:700 11px 'Segoe UI',Arial;letter-spacing:1.1px;text-transform:uppercase;color:{NAVY}">Feature Özeti</span>
+     <span style="font:600 11px 'Segoe UI',Arial;color:{MUT}"> · {len(items)} feature</span></div>
+   <table width="100%" cellspacing="0" cellpadding="0">{head}{body}</table>
+ </td></tr>
+ <tr><td align="center" style="padding:10px 28px 24px">
+   <a href="{REPORT_URL}" style="display:inline-block;background:{NAVY};color:#fff;text-decoration:none;
+      padding:11px 26px;border-radius:5px;font:700 12px 'Segoe UI',Arial;letter-spacing:.4px">Detaylı Raporu Görüntüle ↗</a>
+ </td></tr>
+ <tr><td style="padding:16px 28px 22px;background:{HEADBG};border-top:1px solid {LINE};text-align:left">
+   <div style="font:11px/1.6 'Segoe UI',Arial;color:{MUT}">
+     <b style="color:{INK}">FaturaLab QA</b> &nbsp;·&nbsp; Otomatik test koşum raporu (Selenium + Cucumber)<br>
+     Kaynak: Jenkins ({esc(JOB)}) &nbsp;·&nbsp; Rapor VPN içi dahili sunucudan yayınlanır.<br>
+     Oluşturma: {gen_dt} (TR)</div>
+ </td></tr>
+</table>
+<div style="font:10px 'Segoe UI',Arial;color:#9aa5b1;margin-top:10px">FaturaLab · otomatik gönderim</div>
+</td></tr></table></body></html>"""
 
 
 def main():
     total, passed, failed, features = parse_cucumber()
-    html = build_html(total, passed, failed, features)
-    subj = f"[FaturaLab QA] API Test Raporu - {RESULT} ({passed}/{total} gecti) - Build #{BUILD}"
-    msg = MIMEText(html, 'html', 'utf-8')
-    msg['Subject'] = subj
-    msg['From'] = MAIL_FROM
-    msg['To'] = ', '.join(MAIL_TO)
-    msg['Date'] = formatdate(localtime=True)
-    msg['Message-ID'] = make_msgid(domain='ileti.faturalab.com')
+    logo = load_logo_b64()
+    logo_ref = 'cid:faturalablogo' if logo else 'https://web.faturalab.com/wp-content/uploads/2022/06/logo.svg'
+    html = build_html(total, passed, failed, features, logo_ref)
+    subj = f"[FaturaLab QA] Otomasyon Koşum Raporu — {passed}/{total} geçti — Build #{BUILD}"
+
+    root = MIMEMultipart('related')
+    root['Subject'] = subj
+    root['From'] = MAIL_FROM
+    root['To'] = ', '.join(MAIL_TO)
+    root['Date'] = formatdate(localtime=True)
+    root['Message-ID'] = make_msgid(domain='ileti.faturalab.com')
+    root.attach(MIMEText(html, 'html', 'utf-8'))
+    if logo:
+        img = MIMEImage(base64.b64decode(logo), 'png')
+        img.add_header('Content-ID', '<faturalablogo>')
+        img.add_header('Content-Disposition', 'inline', filename='faturalab.png')
+        root.attach(img)
+
     try:
         s = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20)
         s.ehlo()
-        s.sendmail(MAIL_FROM, MAIL_TO, msg.as_string())
+        s.sendmail(MAIL_FROM, MAIL_TO, root.as_string())
         s.quit()
         print(f'[OK] rapor maili gonderildi -> {MAIL_TO} (ozet: {passed}/{total} gecti, {failed} kaldi)')
     except Exception as e:
