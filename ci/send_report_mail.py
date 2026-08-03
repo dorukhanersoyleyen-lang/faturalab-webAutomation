@@ -22,9 +22,12 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SMTP_HOST = os.environ.get('SMTP_HOST', 'ileti.faturalab.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', '25'))
 MAIL_FROM = os.environ.get('MAIL_FROM', 'automationReport-noreply@ileti.faturalab.com')
+# Alici politikasi (kullanici tercihi 03.08.2026): TO = Dorukhan, CC = Huseyin. Baska kimse YOK.
 MAIL_TO = [x.strip() for x in os.environ.get(
-    'MAIL_TO',
-    'dorukhan.ersoyleyen@faturalab.com,huseyin.taskin@faturalab.com,ramazan.okul@faturalab.com'
+    'MAIL_TO', 'dorukhan.ersoyleyen@faturalab.com'
+).split(',') if x.strip()]
+MAIL_CC = [x.strip() for x in os.environ.get(
+    'MAIL_CC', 'huseyin.taskin@faturalab.com'
 ).split(',') if x.strip()]
 
 JOB = os.environ.get('JOB_NAME', 'faturalab-webAutomation-pipeline')
@@ -166,8 +169,12 @@ def main():
     root['Subject'] = subj
     root['From'] = MAIL_FROM
     root['To'] = ', '.join(MAIL_TO)
+    if MAIL_CC:
+        root['Cc'] = ', '.join(MAIL_CC)
     root['Date'] = formatdate(localtime=True)
     root['Message-ID'] = make_msgid(domain='ileti.faturalab.com')
+    # Mail istemcisinde klasorleme icin ayirt edici header (Outlook kurali: bu header'a gore filtrele)
+    root['X-FaturaLab-Report'] = 'qa-automation'
     root.attach(MIMEText(html, 'html', 'utf-8'))
     if logo:
         img = MIMEImage(base64.b64decode(logo), 'png')
@@ -178,9 +185,10 @@ def main():
     try:
         s = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20)
         s.ehlo()
-        s.sendmail(MAIL_FROM, MAIL_TO, root.as_string())
+        s.sendmail(MAIL_FROM, MAIL_TO + MAIL_CC, root.as_string())
         s.quit()
-        print(f'[OK] rapor maili gonderildi -> {MAIL_TO} (ozet: {passed}/{total} gecti, {failed} kaldi)')
+        print(f'[OK] rapor maili gonderildi -> TO {MAIL_TO} CC {MAIL_CC} '
+              f'(ozet: {passed}/{total} gecti, {failed} kaldi)')
     except Exception as e:
         print(f'[HATA] mail gonderilemedi: {e!r}')
         sys.exit(0)  # mail hatasi build'i dusurmesin
