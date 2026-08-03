@@ -578,10 +578,12 @@ public class CompanyQuickOfferPage extends BasePageObject {
                     "}");
             Thread.sleep(700);
 
-            // "Teklifler" sekmesi/başlığı varsa tıkla
+            // "Teklifler" sekmesi/başlığı varsa tıkla (görünür SON overlay'de — ilk overlay
+            // bayat/görünmez olabilir; CI'da bu yüzden buton bulunamıyordu)
             js.executeScript(
-                    "var overlay = document.querySelector('vaadin-dialog-overlay');" +
-                    "var root = overlay || document;" +
+                    "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                    "var root = ovs.length ? ovs[ovs.length-1] : document;" +
                     "var els = root.querySelectorAll('vaadin-tab, [role=\"tab\"], vaadin-button, h3, h4, span');" +
                     "for (var el of els) {" +
                     "  var t = (el.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
@@ -590,25 +592,40 @@ public class CompanyQuickOfferPage extends BasePageObject {
                     "return false;");
             Thread.sleep(700);
 
-            // İlk sıradaki "Kabul Et" butonu
-            Boolean accepted = (Boolean) js.executeScript(
-                    "var overlay = document.querySelector('vaadin-dialog-overlay');" +
-                    "var root = overlay || document;" +
-                    "var btns = root.querySelectorAll('vaadin-button, button');" +
-                    "for (var b of btns) {" +
-                    "  var t = (b.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
-                    "  if (!b.disabled && (t === 'kabul et' || t.includes('kabul et'))) {" +
-                    "    try { b.scrollIntoView({block:'center'}); } catch (e) {}" +
-                    "    b.click(); return true;" +
-                    "  }" +
-                    "}" +
-                    "return false;");
-            if (Boolean.TRUE.equals(accepted)) {
-                log.info("Teklifler altındaki ilk 'Kabul Et' butonuna tıklandı.");
-                Thread.sleep(1000);
-                return true;
+            // "Kabul Et" butonu — CI'da otobit teklifi TEKLİF AL'dan birkaç sn sonra
+            // düşebilir; buton görünene kadar POLL et (30 sn). (CI flaky kök nedeni #2)
+            long btnDeadline = System.currentTimeMillis() + 30000L;
+            while (System.currentTimeMillis() < btnDeadline) {
+                Boolean accepted = (Boolean) js.executeScript(
+                        "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                        "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                        "var root = ovs.length ? ovs[ovs.length-1] : document;" +
+                        "var btns = root.querySelectorAll('vaadin-button, button');" +
+                        "for (var b of btns) {" +
+                        "  var t = (b.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                        "  if (!b.disabled && (t === 'kabul et' || t.includes('kabul et'))) {" +
+                        "    try { b.scrollIntoView({block:'center'}); } catch (e) {}" +
+                        "    b.click(); return true;" +
+                        "  }" +
+                        "}" +
+                        "return false;");
+                if (Boolean.TRUE.equals(accepted)) {
+                    log.info("Teklifler altındaki ilk 'Kabul Et' butonuna tıklandı.");
+                    Thread.sleep(1000);
+                    return true;
+                }
+                Thread.sleep(1500); // teklif henüz düşmemiş olabilir — bekle, tekrar bak
             }
-            log.warn("'Kabul Et' butonu modalda bulunamadı.");
+            // Teşhis için modal içeriği dökümü
+            Object dump = js.executeScript(
+                    "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                    "var root = ovs.length ? ovs[ovs.length-1] : null;" +
+                    "if(!root) return 'gorunur_overlay_yok';" +
+                    "return Array.from(root.querySelectorAll('vaadin-button, button'))" +
+                    "  .map(function(b){return (b.textContent||'').replace(/\\s+/g,' ').trim();})" +
+                    "  .filter(function(t){return t.length>0;}).join(' | ');");
+            log.warn("'Kabul Et' butonu 30sn içinde görünmedi. Modal butonları: {}", dump);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
