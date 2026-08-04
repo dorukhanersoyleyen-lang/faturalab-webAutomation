@@ -86,15 +86,24 @@ public class BuyerBulkUploadPage extends BasePageObject {
      */
     public void clickYukle() {
         try {
-            // 1. "Yükle" (veya Kaydet) aksiyon butonuna bas
-            log.info("Yükle aksiyonu: {}", clickActionButton());
+            // 1. Aksiyon butonuna bas (öncelik: "Yükle", yoksa "Kaydet")
+            Object first = clickActionButton(null);
+            log.info("Yükle aksiyonu: {}", first);
             Thread.sleep(1500);
-            // 2. Takip formu (ör. Vade Tarihi formu) açıldıysa oradaki "Kaydet"e de bas.
-            //    Excel/XML bazı akışlarda upload sonrası ikinci bir onay adımı gösteriyor.
-            Object follow = clickActionButton();
-            if (!"aksiyon_butonu_yok".equals(follow)) {
+
+            // 2. Takip formu (ör. Vade Tarihi formu) açıldıysa oradaki butona bas.
+            //    ⚠️ AYNI butona İKİNCİ KEZ BASILMAZ: build #62'de "kaydet → kaydet"
+            //    çift submit'i upload'ı bozmuştu (fatura DB'ye hiç düşmedi).
+            String already = null;
+            if (first instanceof String && ((String) first).startsWith("tiklandi: ")) {
+                already = ((String) first).substring("tiklandi: ".length()).trim();
+            }
+            Object follow = clickActionButton(already);
+            if (!"aksiyon_butonu_yok".equals(follow) && !"dialog_yok".equals(follow)) {
                 log.info("Takip aksiyonu: {}", follow);
                 Thread.sleep(800);
+            } else {
+                log.info("Takip aksiyonu gerekmedi: {}", follow);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -115,7 +124,15 @@ public class BuyerBulkUploadPage extends BasePageObject {
      * ilk çağrı "Yükle"ye, ikinci çağrı (Yükle artık yok) "Kaydet"e basar.
      */
     private Object clickActionButton() {
+        return clickActionButton(null);
+    }
+
+    /**
+     * @param excludeLabel bu metne sahip butona BASILMAZ (aynı butona çift submit koruması).
+     */
+    private Object clickActionButton(String excludeLabel) {
         return ((JavascriptExecutor) driver).executeScript(
+                "var exclude = arguments[0];" +
                 "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
                 "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
                 "var overlay = ovs[ovs.length-1];" +
@@ -126,18 +143,20 @@ public class BuyerBulkUploadPage extends BasePageObject {
                 "    var r = b.getBoundingClientRect(); return r.width > 2 && r.height > 2;" +
                 "  });" +
                 "function norm(b){ return (b.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim(); }" +
+                "function skip(t){ return !!exclude && t === String(exclude).toLowerCase().trim(); }" +
                 // 1. TUR: yalnızca "Yükle" (asıl upload tetikleyicisi)
                 "for (var b of btns) {" +
                 "  var t = norm(b);" +
+                "  if (skip(t)) continue;" +
                 "  if (t === 'yükle' || t === 'yukle' || t.indexOf('belgelerini yükle') >= 0) {" +
                 "    b.click(); return 'tiklandi: ' + t;" +
                 "  }" +
                 "}" +
                 // 2. TUR: takip adımı → "Kaydet"
                 "for (var b2 of btns) {" +
-                "  if (norm(b2) === 'kaydet') { b2.click(); return 'tiklandi: kaydet'; }" +
+                "  if (norm(b2) === 'kaydet' && !skip('kaydet')) { b2.click(); return 'tiklandi: kaydet'; }" +
                 "}" +
-                "return 'aksiyon_butonu_yok';");
+                "return 'aksiyon_butonu_yok';", excludeLabel);
     }
 
     /**
