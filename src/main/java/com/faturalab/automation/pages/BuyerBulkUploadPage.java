@@ -103,21 +103,39 @@ public class BuyerBulkUploadPage extends BasePageObject {
         }
     }
 
-    /** Görünür dialogdaki Yükle/Kaydet aksiyon butonuna basar (dropzone butonu hariç). */
+    /**
+     * Görünür dialogdaki aksiyon butonuna basar (dropzone butonu hariç).
+     *
+     * ⚠️ ÖNCELİK SIRASI ÖNEMLİ: önce "Yükle", yoksa "Kaydet".
+     * Tek turda `yükle || kaydet` aramak DOM sırasına bağlı kalıyordu; tedarikçi
+     * dialogunda (Fatura Yükle | ... | Yükle | Taslak İndir | İptal | Kaydet) bazı
+     * koşumlarda "Kaydet" önce eşleşip dosya HİÇ yüklenmiyordu (CI build #62 kök nedeni:
+     * "Yükle aksiyonu: tiklandi: kaydet" → fatura DB'ye düşmedi).
+     * İki adımlı akışta (Yükle → vade formu → Kaydet) bu sıralama doğal olarak çalışır:
+     * ilk çağrı "Yükle"ye, ikinci çağrı (Yükle artık yok) "Kaydet"e basar.
+     */
     private Object clickActionButton() {
         return ((JavascriptExecutor) driver).executeScript(
                 "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
                 "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
                 "var overlay = ovs[ovs.length-1];" +
                 "if (!overlay) return 'dialog_yok';" +
-                "var btns = Array.from(overlay.querySelectorAll('vaadin-button, button'));" +
+                "var btns = Array.from(overlay.querySelectorAll('vaadin-button, button'))" +
+                "  .filter(function(b){" +
+                "    if (b.closest('vaadin-upload') || b.disabled) return false;" +
+                "    var r = b.getBoundingClientRect(); return r.width > 2 && r.height > 2;" +
+                "  });" +
+                "function norm(b){ return (b.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim(); }" +
+                // 1. TUR: yalnızca "Yükle" (asıl upload tetikleyicisi)
                 "for (var b of btns) {" +
-                "  if (b.closest('vaadin-upload')) continue;" +
-                "  if (b.disabled) continue;" +
-                "  var t = (b.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
-                "  if (t === 'yükle' || t === 'yukle' || t.includes('belgelerini yükle') || t === 'kaydet') {" +
+                "  var t = norm(b);" +
+                "  if (t === 'yükle' || t === 'yukle' || t.indexOf('belgelerini yükle') >= 0) {" +
                 "    b.click(); return 'tiklandi: ' + t;" +
                 "  }" +
+                "}" +
+                // 2. TUR: takip adımı → "Kaydet"
+                "for (var b2 of btns) {" +
+                "  if (norm(b2) === 'kaydet') { b2.click(); return 'tiklandi: kaydet'; }" +
                 "}" +
                 "return 'aksiyon_butonu_yok';");
     }

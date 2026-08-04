@@ -145,8 +145,9 @@ public class TzfIslemUATStepDefs {
         java.util.List<String> invoiceNos = TzfScenarioContext.getInvoices().stream()
                 .map(i -> i.invoiceNo)
                 .collect(java.util.stream.Collectors.toList());
+        // Filtre ikonu tıklaması Vaadin'de sunucuya işlemeyip dialog açılmayabilir → 3 deneme
         boolean filtered = com.faturalab.automation.utils.VaadinGridFilterHelper
-                .applyOnlyValues(DriverManager.getDriver(), "Fatura No", invoiceNos);
+                .applyOnlyValuesWithRetry(DriverManager.getDriver(), "Fatura No", invoiceNos, 3);
         Assert.assertTrue(filtered,
                 "Fatura No filtresi uygulanamadı — faturalar listede yok olabilir: " + invoiceNos);
 

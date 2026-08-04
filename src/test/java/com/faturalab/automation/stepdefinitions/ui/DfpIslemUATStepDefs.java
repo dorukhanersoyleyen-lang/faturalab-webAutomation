@@ -60,9 +60,17 @@ public class DfpIslemUATStepDefs {
                 new com.faturalab.automation.pages.SupplierInvoiceUploadPage(DriverManager.getDriver());
         Assert.assertTrue(sp.openUploadDialog(), "DFP fatura yükleme dialogu açılamadı");
         sp.uploadFile(path);
-        // Alıcı-tarzı iki adımlı aksiyon (Yükle → takip Kaydet) BuyerBulkUploadPage'te hazır
+        // Alıcı-tarzı iki adımlı aksiyon (Yükle → takip Kaydet) BuyerBulkUploadPage'te hazır.
+        // ⚠️ clickActionButton ÖNCELİKLİ arar (önce "Yükle", sonra "Kaydet") — tek turda
+        // arandığında DOM sırası yüzünden "Kaydet" tıklanıp dosya hiç yüklenmiyordu (build #62).
         new com.faturalab.automation.pages.BuyerBulkUploadPage(DriverManager.getDriver()).clickYukle();
-        log.info("[DFP] Dosya yüklendi + Yükle/Kaydet zinciri koşuldu: {}", path);
+
+        // Upload SONUCUNU doğrula: eskiden yalnızca tıklanıyordu, red/başarısızlık
+        // sessizce geçiyor ve bir sonraki adım anlamsız "fatura listede yok" hatası veriyordu.
+        boolean ok = sp.waitForUploadSuccess(45);
+        Assert.assertTrue(ok,
+                "DFP fatura yüklemesi başarısız — başarı bildirimi gelmedi veya red edildi: " + path);
+        log.info("[DFP] Dosya yüklendi ve başarı doğrulandı: {}", path);
     }
 
     @Then("DFP teklif talebi işlemdekiler listesinde görünmeli")

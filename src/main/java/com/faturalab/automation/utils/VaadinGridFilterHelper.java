@@ -36,6 +36,34 @@ public final class VaadinGridFilterHelper {
      * Verilen kolonda yalnızca istenen değerler seçili kalacak şekilde filtre uygular
      * ve ilk değerin grid'de GÖRÜNÜR olmasını bekler.
      */
+    /**
+     * applyOnlyValues'ın retry'lı sarmalayıcısı: filtre ikonu tıklaması Vaadin'de
+     * bazen sunucuya işlemiyor ve dialog açılmıyor (CI'da gözlendi, build #62).
+     * Her denemede grid'in yeniden render olmasına zaman verilip tekrar denenir.
+     */
+    public static boolean applyOnlyValuesWithRetry(WebDriver driver, String columnKeyword,
+                                                   List<String> values, int attempts) {
+        for (int i = 1; i <= attempts; i++) {
+            if (applyOnlyValues(driver, columnKeyword, values)) {
+                return true;
+            }
+            log.warn("Filtre denemesi {}/{} başarısız ({}) — tekrar denenecek.", i, attempts, columnKeyword);
+            try {
+                // Açık kalmış filtre dialogunu kapat (ESC) ve grid'in oturmasını bekle
+                ((JavascriptExecutor) driver).executeScript(
+                        "var d = document.querySelector('vaadin-dialog-overlay.table-filter-dialog');" +
+                        "if (d) { try { d.opened = false; } catch(e) { try { d.remove(); } catch(e2) {} } }");
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            } catch (Exception ignored) {
+                // dialog kapatma başarısızsa sonraki deneme yine dener
+            }
+        }
+        return false;
+    }
+
     public static boolean applyOnlyValues(WebDriver driver, String columnKeyword, List<String> values) {
         JavascriptExecutor js = (JavascriptExecutor) driver;
         try {
