@@ -23,7 +23,7 @@
                                         Target="#Signature_{INVOICE_ID}">
               <xades:SignedProperties Id="SignedProperties_{INVOICE_ID}">
                 <xades:SignedSignatureProperties>
-                  <xades:SigningTime>{SIGN_DATE}T09:00:00</xades:SigningTime>
+                  <xades:SigningTime>{SIGN_DATE}T{ISSUE_TIME}</xades:SigningTime>
                 </xades:SignedSignatureProperties>
               </xades:SignedProperties>
             </xades:QualifyingProperties>
@@ -39,7 +39,7 @@
   <cbc:CopyIndicator>false</cbc:CopyIndicator>
   <cbc:UUID>{UUID}</cbc:UUID>
   <cbc:IssueDate>{ISSUE_DATE}</cbc:IssueDate>
-  <cbc:IssueTime>09:00:00</cbc:IssueTime>
+  <cbc:IssueTime>{ISSUE_TIME}</cbc:IssueTime>
   <cbc:InvoiceTypeCode>SATIS</cbc:InvoiceTypeCode>
   <cbc:DocumentCurrencyCode>TRY</cbc:DocumentCurrencyCode>
   <cac:Signature>

@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import java.util.zip.ZipEntry;
@@ -170,7 +171,19 @@ public final class XmlInvoiceGenerator {
 
     private static String fillTemplateFrom(String resourcePath, String invoiceId) throws Exception {
         String template = readTemplate(resourcePath);
-        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        // ⚠️ IssueTime/SigningTime SABİT "09:00:00" idi (build #65 kök nedeni, 05.08.2026):
+        // dev'de MAX_INVOICE_DATE_LIMIT=0 → InvoiceHelper.isMaxInvoiceDateExceeded fatura
+        // tarihini "şu an"la kıyaslıyor. Pipeline saat 08:00 TR'de (günlük cron) kalkıp
+        // DFP-001'e ~08:03'te ulaşınca, sabit "09:00:00" henüz gelmemiş bir saat olduğundan
+        // fatura "gelecek tarihli" sayılıp "Fatura tarihi üst limiti aşıldı" ile reddediliyordu
+        // (09:00'dan sonra koşulan build'lerde tesadüfen geçiyordu). "Şu an - 2 dk" (küçük
+        // güvenlik payı) her koşumda geçmişte kalır, saatten bağımsız. Tarih + saat AYNI
+        // andan (now) türetilir — ayrı ayrı LocalDate.now()/LocalTime.now() çağrısı gece
+        // yarısı sınırında (00:00-00:02) tarih/saat'in farklı günlere düşmesine (ve saatin
+        // "yarın"a taşınmasına) yol açabilirdi.
+        LocalDateTime now = LocalDateTime.now().minusMinutes(2);
+        String today = now.toLocalDate().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+        String issueTime = now.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
         LocalDate due = LocalDate.now().plusDays(90);
         while (due.getDayOfWeek() == DayOfWeek.SATURDAY || due.getDayOfWeek() == DayOfWeek.SUNDAY) {
             due = due.plusDays(1);
@@ -180,6 +193,7 @@ public final class XmlInvoiceGenerator {
                 .replace("{UUID}", UUID.randomUUID().toString().toUpperCase())
                 .replace("{ISSUE_DATE}", today)
                 .replace("{SIGN_DATE}", today)
+                .replace("{ISSUE_TIME}", issueTime)
                 .replace("{DUE_DATE}", due.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")));
     }
 
