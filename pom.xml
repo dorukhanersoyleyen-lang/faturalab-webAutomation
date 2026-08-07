@@ -156,6 +156,13 @@
       <artifactId>commons-io</artifactId>
       <version>2.15.1</version>
     </dependency>
+
+    <!-- PostgreSQL JDBC — load/stress testlerinde pg_stat_activity izleme (salt-okunur) -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>42.7.3</version>
+    </dependency>
   </dependencies>
 
   <build>
