@@ -41,16 +41,20 @@ pipeline {
             }
         }
 
-        stage('Test: Fatura API + Yukleme + TZF') {
+        stage('Test: Fatura API + Yukleme + TZF + DTS') {
             steps {
-                echo '🧪 Fatura API + Yukleme + TZF testleri kosuluyor...'
+                echo '🧪 Fatura API + Yukleme + TZF + DTS testleri kosuluyor...'
                 // -Dcucumber.filter.tags runner tag'ini override eder → sadece @api
                 // verify fazi maven-cucumber-reporting ile extended raporu uretir
                 // testFailureIgnore: test fail'i pipeline'i hard-fail etmez (junit sonucu UNSTABLE yapar)
+                // @dts: DTS-001 (DRAFT->COMPLETED tam yaşam döngüsü) + DTS_API-001 (batch REST) +
+                // dts-fk-crud/dts-bayi-crud/dts-limit-crud (Bayi/Finansal Kurum/Bayi Limitleri CRUD) —
+                // hepsi Test Otomasyon Sadece Tedarikçi (company.id=998) izole test firmasında koşar,
+                // Petek A.Ş.'ye dokunmaz. ~10 dk ek süre (5 UI/API senaryo) — OP#5878.
                 sh '''
                     export DISPLAY=:99
                     Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001"
+                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001 or @dts"
                 '''
             }
         }
