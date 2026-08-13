@@ -22,12 +22,13 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SMTP_HOST = os.environ.get('SMTP_HOST', 'ileti.faturalab.com')
 SMTP_PORT = int(os.environ.get('SMTP_PORT', '25'))
 MAIL_FROM = os.environ.get('MAIL_FROM', 'automationReport-noreply@ileti.faturalab.com')
-# Alici politikasi (kullanici tercihi 03.08.2026): TO = Dorukhan, CC = Huseyin. Baska kimse YOK.
+# Alici politikasi (kullanici tercihi 03.08.2026, guncelleme 13.08.2026): TO = Dorukhan,
+# CC = Huseyin + Enes Erdogan (Scrum Master).
 MAIL_TO = [x.strip() for x in os.environ.get(
     'MAIL_TO', 'dorukhan.ersoyleyen@faturalab.com'
 ).split(',') if x.strip()]
 MAIL_CC = [x.strip() for x in os.environ.get(
-    'MAIL_CC', 'huseyin.taskin@faturalab.com'
+    'MAIL_CC', 'huseyin.taskin@faturalab.com,enes.erdogan@faturalab0.onmicrosoft.com'
 ).split(',') if x.strip()]
 
 JOB = os.environ.get('JOB_NAME', 'faturalab-webAutomation-pipeline')
