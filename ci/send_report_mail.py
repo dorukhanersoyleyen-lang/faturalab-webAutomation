@@ -28,7 +28,7 @@ MAIL_TO = [x.strip() for x in os.environ.get(
     'MAIL_TO', 'dorukhan.ersoyleyen@faturalab.com'
 ).split(',') if x.strip()]
 MAIL_CC = [x.strip() for x in os.environ.get(
-    'MAIL_CC', 'huseyin.taskin@faturalab.com,enes.erdogan@faturalab0.onmicrosoft.com'
+    'MAIL_CC', 'huseyin.taskin@faturalab.com,enes.erdogan@faturalab.com'
 ).split(',') if x.strip()]
 
 JOB = os.environ.get('JOB_NAME', 'faturalab-webAutomation-pipeline')
