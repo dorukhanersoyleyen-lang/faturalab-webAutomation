@@ -12,10 +12,12 @@ import java.sql.ResultSet;
 import java.util.Optional;
 
 /**
- * DTF (Dikey Ticaret Finansmanı) senaryoları için SALT-OKUNUR DB çapraz doğrulama yardımcısı.
+ * DTF (Dikey Ticaret Finansmanı) senaryoları için DB çapraz doğrulama yardımcısı.
  *
- * ⚠️ Sadece SELECT çalıştırır — hiçbir INSERT/UPDATE/DELETE yok. Bağlantı bilgileri
- * {@code loadtest.db.*} (dev.properties) ile PAYLAŞILIR ({@link DtsDbAssertions} ile AYNI kalıp).
+ * Ağırlıklı olarak SALT-OKUNUR (SELECT) — tek istisna {@link #setAraTedarikciRequiredDtf(boolean)}:
+ * bkz. o metodun Javadoc'u — TZF-DTF supplier paylaşımı regresyonunu önlemek için kasıtlı, dar
+ * kapsamlı bir UPDATE. Bağlantı bilgileri {@code loadtest.db.*} (dev.properties) ile PAYLAŞILIR
+ * ({@link DtsDbAssertions} ile AYNI kalıp).
  */
 public final class DtfDbAssertions {
 
@@ -120,6 +122,48 @@ public final class DtfDbAssertions {
         } catch (Exception e) {
             log.error("[DTF-DB] auction sorgusu başarısız oldu (id={}): {}", auctionId, e.getMessage(), e);
             throw new RuntimeException("auction salt-okunur sorgusu başarısız: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * ⚠️⚠️ KÖK NEDEN — TZF↔DTF supplier PAYLAŞIMI REGRESYONU (2026-08-14, canlı Jenkins günlük
+     * koşumunda kanıtlandı, build #78): DTF-001'in kurulum scripti ({@code setup_dtf_automation_chain.py})
+     * {@code supplier.id=1091} (company.id=998 → buyer.id=145, TZF'nin de kullandığı AYNI bağlantı)
+     * üzerinde {@code requireddtf=true} bırakmıştı — kaynak kod kanıtı
+     * ({@code CompanyAddEditAuctionDialog.java:1013-1021}): {@code supplier.isRequiredDtf()} true VE
+     * tarih aralığındaysa normal "Teklif Al" (startButton) KALICI OLARAK disabled kalıyor — DTF'ten
+     * habersiz TZF senaryosu "Modal içindeki 'Teklif Al' tıklanamadı" ile patlıyordu (dtfenddate=2027
+     * olduğu için sonraki HER günlük koşumda tekrarlayacaktı).
+     * <p>
+     * Fix: {@code requireddtf} artık KALICI DEĞİL, DTF-001 senaryosunun SÜRESİ boyunca geçici olarak
+     * açılıp kapatılıyor — bu metod {@code @Before("@dtf-001")}'de {@code true}, {@code @After("@dtf-001")}'de
+     * {@code false} ile çağrılır (bkz. {@code DtfIslemUATStepDefs}). UI paketi {@code parallel=false}
+     * ile koştuğu için (Vaadin SPA kısıtı, bkz. web-automation.md) TZF ile DTF-001 asla eş zamanlı
+     * çalışmaz — bu toggle güvenlidir.
+     * <p>
+     * ⚠️ Bilinçli olarak {@code id=1091 AND buyerid=145 AND companyid=998} ÜÇLÜ WHERE koşuluyla
+     * DARALTILMIŞTIR — başka hiçbir supplier satırına yanlışlıkla dokunmayı imkansız kılar.
+     */
+    public static void setAraTedarikciRequiredDtf(boolean enabled) {
+        String jdbcUrl = ConfigReader.getProperty("loadtest.db.url");
+        String dbUser = ConfigReader.getProperty("loadtest.db.user");
+        String dbPassword = ConfigReader.getProperty("loadtest.db.password");
+
+        String sql = "UPDATE supplier SET requireddtf = ? WHERE id = 1091 AND buyerid = 145 AND companyid = 998";
+
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPassword)) {
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setBoolean(1, enabled);
+                int rows = ps.executeUpdate();
+                log.info("[DTF-DB] supplier.id=1091 requireddtf={} olarak ayarlandı ({} satır).", enabled, rows);
+                if (rows != 1) {
+                    log.warn("[DTF-DB] BEKLENEN 1 satır güncellenmeliydi, {} güncellendi — supplier.id=1091 "
+                            + "değişmiş/silinmiş olabilir.", rows);
+                }
+            }
+        } catch (Exception e) {
+            log.error("[DTF-DB] setAraTedarikciRequiredDtf({}) başarısız oldu: {}", enabled, e.getMessage(), e);
+            throw new RuntimeException("supplier.requireddtf güncellemesi başarısız: " + e.getMessage(), e);
         }
     }
 }
