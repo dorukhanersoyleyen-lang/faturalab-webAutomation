@@ -15,6 +15,8 @@ import com.faturalab.automation.pages.CompanyLicenceAgreementDialogPage;
 import com.faturalab.automation.pages.CompanyQuickOfferPage;
 import com.faturalab.automation.utils.TzfInvoiceExcelGenerator;
 import com.faturalab.automation.utils.VaadinGridFilterHelper;
+import io.cucumber.java.After;
+import io.cucumber.java.Before;
 import io.cucumber.java.en.And;
 import io.cucumber.java.en.Given;
 import io.cucumber.java.en.Then;
@@ -40,6 +42,24 @@ import java.util.Optional;
 public class DtfIslemUATStepDefs {
 
     private static final Logger log = LogManager.getLogger(DtfIslemUATStepDefs.class);
+
+    // ⚠️⚠️ KÖK NEDEN — TZF↔DTF supplier PAYLAŞIMI REGRESYONU (2026-08-14, Jenkins günlük koşumu
+    // build #78'de canlı kanıtlandı): supplier.id=1091 (company998→buyer145) TZF'nin de kullandığı
+    // AYNI bağlantı. requireddtf=true'yu KALICI bırakmak TZF'nin normal "Teklif Al"ını süresiz
+    // (dtfenddate=2027) devre dışı bırakıyordu. Fix: requireddtf artık SADECE bu senaryonun süresi
+    // boyunca açık — @Before ile true, @After ile (PASS/FAIL fark etmez) false'a döner. Detay:
+    // DtfDbAssertions.setAraTedarikciRequiredDtf() Javadoc'u.
+    @Before("@dtf-001")
+    public void dtfIcinRequiredDtfGeciciAcilir() {
+        DtfDbAssertions.setAraTedarikciRequiredDtf(true);
+        log.info("[DTF] supplier.id=1091 requireddtf=TRUE (senaryo süresince, TZF etkilenmeyecek şekilde @After'da geri alınacak)");
+    }
+
+    @After("@dtf-001")
+    public void dtfIcinRequiredDtfGeriKapatilir() {
+        DtfDbAssertions.setAraTedarikciRequiredDtf(false);
+        log.info("[DTF] supplier.id=1091 requireddtf=FALSE'a geri alındı — TZF'nin normal 'Teklif Al' akışı korunuyor.");
+    }
 
     private static final long ANA_FIRMA_BUYER_ID = 145L;
     // ⚠️ KÖK NEDEN (2026-08-13, DB'de canlı kanıtlandı — tender.id=800, buyerid=151, status=WAITING,
