@@ -51,10 +51,13 @@ pipeline {
                 // dts-fk-crud/dts-bayi-crud/dts-limit-crud (Bayi/Finansal Kurum/Bayi Limitleri CRUD) —
                 // hepsi Test Otomasyon Sadece Tedarikçi (company.id=998) izole test firmasında koşar,
                 // Petek A.Ş.'ye dokunmaz. ~10 dk ek süre (5 UI/API senaryo) — OP#5878.
+                // @dtf: DTF-001 (izole DTF zinciri — Ana Firma buyer.id=145 / Ara Tedarikçi
+                // company.id=998+buyer.id=151 / Alt Tedarikçiler 401+243) — TZF ile AYNI izole
+                // kimlikleri reuse eder, ~3.5-4 dk ek süre — OP#5800 (2026-08-13, 2/2 yeşil doğrulandı).
                 sh '''
                     export DISPLAY=:99
                     Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001 or @dts"
+                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001 or @dts or @dtf"
                 '''
             }
         }
