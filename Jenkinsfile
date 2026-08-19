@@ -54,10 +54,14 @@ pipeline {
                 // @dtf: DTF-001 (izole DTF zinciri — Ana Firma buyer.id=145 / Ara Tedarikçi
                 // company.id=998+buyer.id=151 / Alt Tedarikçiler 401+243) — TZF ile AYNI izole
                 // kimlikleri reuse eder, ~3.5-4 dk ek süre — OP#5800 (2026-08-13, 2/2 yeşil doğrulandı).
+                // @teklif-iptal: Teklif Talebi İptal Akışı (fatura yükle → teklif al → iptal et →
+                // remainingAmount geri alma + tekrar teklif al'da temlik hatası vermemesi doğrulanır)
+                // — OP#5649 regresyon testi, 2026-08-19 2/2 yeşil doğrulandı. auctionCount alanı
+                // bilinen açık defect (#5905) olduğu için sadece loglanır, kesin assert edilmez.
                 sh '''
                     export DISPLAY=:99
                     Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001 or @dts or @dtf"
+                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001 or @dts or @dtf or @teklif-iptal"
                 '''
             }
         }
