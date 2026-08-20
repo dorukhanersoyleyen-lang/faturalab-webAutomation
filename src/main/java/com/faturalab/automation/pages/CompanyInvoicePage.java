@@ -130,6 +130,32 @@ public class CompanyInvoicePage extends BasePageObject {
         }
     }
 
+    /**
+     * {@link #navigateToInvoiceList()} — "zaten yüklü" kısayolu YANLIŞ POZİTİF verebilir:
+     * sidebar'daki "Yüklenmişler" nav item'ı (YUKLENMISLER_MENU) her sayfada DOM'da bulunur
+     * (aktif sayfa İşlemdekiler/Ödeme Yükümlülükleri olsa bile), bu yüzden kısayol o ekranlarda
+     * da "zaten oradayız" sanıp gerçek navigasyonu atlar (WP#5649 — Kabul/İptal sonrası tekrar
+     * Yüklenmişler'e dönerken bu yüzden yanlış grid filtrelenmiş oluyordu). Bu metod kısayolu
+     * atlayıp DAİMA menüye tıklar.
+     */
+    public void navigateToInvoiceListForced() {
+        try {
+            tryOpenNavigationDrawer();
+            org.openqa.selenium.WebElement menu = new org.openqa.selenium.support.ui.WebDriverWait(
+                    driver, java.time.Duration.ofSeconds(10))
+                    .until(ExpectedConditions.elementToBeClickable(YUKLENMISLER_MENU));
+            menu.click();
+            log.info("(forced) Sidebar 'Yüklenmişler' tıklandı.");
+            waitForVaadinNavigation();
+        } catch (Exception e) {
+            log.warn("navigateToInvoiceListForced XPath ile başarısız, anahtar kelime deneniyor: {}", e.getMessage());
+            if (!clickNavItemByText("yüklenmiş")) {
+                clickNavItemByText("yuklenmis");
+            }
+            waitForVaadinNavigation();
+        }
+    }
+
     /** @deprecated {@link #navigateToInvoiceList()} kullanın */
     public void navigateToFaturalar() {
         navigateToInvoiceList();

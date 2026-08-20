@@ -39,6 +39,7 @@ public final class TzfScenarioContext {
     private static final List<TzfInvoice> invoices = new ArrayList<>();
     private static String offeredInvoiceNo;
     private static String bordroNo;
+    private static String retryResult;
 
     private TzfScenarioContext() {
     }
@@ -48,6 +49,7 @@ public final class TzfScenarioContext {
         invoices.clear();
         offeredInvoiceNo = null;
         bordroNo = null;
+        retryResult = null;
     }
 
     public static String getExcelPath() {
@@ -80,5 +82,13 @@ public final class TzfScenarioContext {
 
     public static void setBordroNo(String no) {
         bordroNo = no;
+    }
+
+    public static String getRetryResult() {
+        return retryResult;
+    }
+
+    public static void setRetryResult(String result) {
+        retryResult = result;
     }
 }
