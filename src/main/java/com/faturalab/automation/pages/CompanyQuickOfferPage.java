@@ -810,6 +810,61 @@ public class CompanyQuickOfferPage extends BasePageObject {
         return false;
     }
 
+    /**
+     * WP#5844 canlı doğrulaması — Kabul/İptal modalını (CompanyAuctionApprovalDialog) SADECE
+     * OKUMAK için açar: modalı en alta kaydırır, "Teklifler" sekmesi varsa tıklar (salt görünüm
+     * değişimi, YIKICI DEĞİL — "Kabul Et"e ASLA basılmaz), sonra görünür overlay'in TÜM metnini
+     * döker. Otobit tutarı ve ağırlıklı ortalama vade bu dökümden regex/gözle okunur.
+     *
+     * @return görünür overlay'in ham metni (bulunamazsa boş string)
+     */
+    public String scrollAndDumpApprovalModalReadOnly() {
+        try {
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            js.executeScript(
+                    "var overlays = document.querySelectorAll('vaadin-dialog-overlay');" +
+                    "for (var o of overlays) {" +
+                    "  var r = o.getBoundingClientRect();" +
+                    "  if (r.width < 2) continue;" +
+                    "  var scrollables = [o].concat(Array.from(o.querySelectorAll('*')));" +
+                    "  if (o.shadowRoot) {" +
+                    "    var content = o.shadowRoot.querySelector('[part=\"content\"], [part=\"overlay\"]');" +
+                    "    if (content) scrollables.unshift(content);" +
+                    "  }" +
+                    "  for (var s of scrollables) {" +
+                    "    if (s.scrollHeight > s.clientHeight + 10) { s.scrollTop = s.scrollHeight; }" +
+                    "  }" +
+                    "}");
+            Thread.sleep(700);
+            js.executeScript(
+                    "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                    "var root = ovs.length ? ovs[ovs.length-1] : document;" +
+                    "var els = root.querySelectorAll('vaadin-tab, [role=\"tab\"], vaadin-button, h3, h4, span');" +
+                    "for (var el of els) {" +
+                    "  var t = (el.textContent || '').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "  if (t === 'teklifler' || t === 'gelen teklifler') { el.click(); return true; }" +
+                    "}" +
+                    "return false;");
+            Thread.sleep(700);
+            Object dump = js.executeScript(
+                    "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                    "var root = ovs.length ? ovs[ovs.length-1] : null;" +
+                    "if (!root) return '';" +
+                    "return (root.textContent || '').replace(/\\s+/g,' ').trim();");
+            String text = String.valueOf(dump);
+            log.info("[WP5844] Kabul/İptal modalı (salt-okunur) döküm uzunluğu: {} karakter", text.length());
+            return text;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return "";
+        } catch (Exception e) {
+            log.warn("[WP5844] scrollAndDumpApprovalModalReadOnly: {}", e.getMessage());
+            return "";
+        }
+    }
+
     /** Kabul sonrası gelen "Evet" onay modalını onaylar. */
     public boolean confirmEvet() {
         acceptVaadinConfirmDialogIfPresent();
@@ -1015,6 +1070,137 @@ public class CompanyQuickOfferPage extends BasePageObject {
             }
         }
         return null;
+    }
+
+    // ─── WP#5649 — taze fatura ile organik iptal + tekrar teklif al ─────────
+
+    /**
+     * Verilen bordronun Kabul/İptal modalında "Teklif Talebini İptal Et" (rejectButton,
+     * {@code CompanyAuctionApprovalDialog.17}) butonuna basar, "Onay" dialogunda (Evet/Hayır)
+     * "Evet" ile onaylar ve gerçek başarı toast'ını ("Teklif talebi iptal edildi.",
+     * {@code CompanyAuctionApprovalDialog.21}) bekler.
+     *
+     * Kaynak kod (AuctionModel.rejectAuctionWithSession): auction.status → REJECTED,
+     * ilgili Offer'lar AUCTIONREJECT, invoice.remainingAmount geri eklenir.
+     *
+     * @return gerçek "iptal edildi" toast'ı görüldüyse true
+     */
+    public boolean cancelAuctionForBordro(String bordroNo) {
+        try {
+            if (!clickKabulIptalForBordro(bordroNo)) {
+                log.warn("[WP5649] Bordro {} için Kabul/İptal modalı açılamadı.", bordroNo);
+                return false;
+            }
+            JavascriptExecutor js = (JavascriptExecutor) driver;
+            String clickScript =
+                    "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                    "var ov = ovs[ovs.length-1]; if(!ov) return false;" +
+                    "var btns = ov.querySelectorAll('vaadin-button, button');" +
+                    // ⚠️ 'İ'.toLowerCase() JS'de "i" + U+0307 (combining dot) üretir — düz
+                    // 'iptal' string'i bu yüzden eşleşmez. NFKD + combining mark temizliği şart.
+                    "function foldTr(s) {" +
+                    "  return (s || '').normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'')" +
+                    "    .toLowerCase().replace(/\\s+/g,' ').trim();" +
+                    "}" +
+                    "for (var b of btns) {" +
+                    "  var t = foldTr(b.textContent);" +
+                    "  if (!b.disabled && t.includes('teklif talebini') && t.includes('iptal')) {" +
+                    "    try { b.scrollIntoView({block:'center'}); } catch (e) {}" +
+                    "    b.click(); return true;" +
+                    "  }" +
+                    "}" +
+                    "return false;";
+            Boolean clicked = (Boolean) js.executeScript(clickScript);
+            // Modal render/hydration gecikmesi için kısa poll ile tekrar dene (ilk denemede
+            // buton henüz DOM'a eklenmemiş olabilir).
+            long clickDeadline = System.currentTimeMillis() + 6000L;
+            while (!Boolean.TRUE.equals(clicked) && System.currentTimeMillis() < clickDeadline) {
+                Thread.sleep(600);
+                clicked = (Boolean) js.executeScript(clickScript);
+            }
+            log.info("[WP5649] 'Teklif Talebini İptal Et' tıklandı mı: {}", clicked);
+            if (!Boolean.TRUE.equals(clicked)) {
+                Object dump = js.executeScript(
+                        "var ovs = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                        "  .filter(function(o){return o.getBoundingClientRect().width>2;});" +
+                        "var ov = ovs[ovs.length-1];" +
+                        "if(!ov) return 'gorunur_overlay_yok';" +
+                        "return Array.from(ov.querySelectorAll('vaadin-button, button'))" +
+                        "  .map(function(b){return (b.textContent||'').replace(/\\s+/g,' ').trim() + (b.disabled?'[disabled]':'');})" +
+                        "  .filter(function(t){return t.length>0;}).join(' | ');");
+                log.warn("[WP5649] 'Teklif Talebini İptal Et' bulunamadı. Modal butonları: {}", dump);
+                return false;
+            }
+            Thread.sleep(700);
+            // "Onay" (Evet/Hayır) dialogu — pozitif buton "Evet"
+            acceptVaadinConfirmDialogIfPresent();
+
+            long deadline = System.currentTimeMillis() + 15000L;
+            while (System.currentTimeMillis() < deadline) {
+                Boolean success = (Boolean) js.executeScript(
+                        "var cards = document.querySelectorAll('vaadin-notification-card');" +
+                        "for (var c of cards){ var r=c.getBoundingClientRect(); if(r.width<2) continue;" +
+                        "  var t=(c.textContent||'').toLowerCase();" +
+                        "  if (t.includes('iptal edildi')) return true; }" +
+                        "return false;");
+                if (Boolean.TRUE.equals(success)) {
+                    log.info("[WP5649] Gerçek 'Teklif talebi iptal edildi.' toast'ı görüldü — bordro {}.", bordroNo);
+                    return true;
+                }
+                Thread.sleep(500);
+            }
+            log.warn("[WP5649] İptal toast'ı 15sn içinde görünmedi — bordro {}.", bordroNo);
+            return false;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception e) {
+            log.warn("[WP5649] cancelAuctionForBordro ({}): {}", bordroNo, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Fatura için TEKRAR "TEKLİF AL" tıklar ve sonucu gözlemler: teklif modalı mı açıldı
+     * (AC#2 hatası YOK) yoksa "Temlik tutarı, kalan tutardan yüksek olamaz." (veya benzer)
+     * hata toast'ı mı çıktı (AC#2 hatası VAR — {@code AuctionInvoiceGroupModel.1}).
+     *
+     * @return "MODAL_OPENED" | "ERROR_TOAST:<metin>" | "NEITHER"
+     */
+    public String retryTeklifAlAndObserve(String invoiceNo, int timeoutSeconds) {
+        if (!clickTeklifAlForInvoice(invoiceNo)) {
+            log.warn("[WP5649] Tekrar TEKLİF AL tıklanamadı: {}", invoiceNo);
+            return "NEITHER";
+        }
+        long deadline = System.currentTimeMillis() + timeoutSeconds * 1000L;
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                if (isModalOpen()) {
+                    log.info("[WP5649] Tekrar TEKLİF AL sonrası teklif modalı açıldı (hata YOK).");
+                    return "MODAL_OPENED";
+                }
+                Object toast = js.executeScript(
+                        "var cards = document.querySelectorAll('vaadin-notification-card');" +
+                        "for (var c of cards){ var r=c.getBoundingClientRect(); if(r.width<2) continue;" +
+                        "  var t=(c.textContent||'').replace(/\\s+/g,' ').trim();" +
+                        "  if (t.length>0) return t; }" +
+                        "return null;");
+                if (toast != null) {
+                    String t = String.valueOf(toast);
+                    log.warn("[WP5649] Tekrar TEKLİF AL sonrası toast görüldü: {}", t);
+                    return "ERROR_TOAST:" + t;
+                }
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return "NEITHER";
+            } catch (Exception ignored) {
+            }
+        }
+        log.warn("[WP5649] {} sn içinde ne modal ne toast görüldü.", timeoutSeconds);
+        return "NEITHER";
     }
 
     /** Fatura listesinde en az bir anlamlı hücre var mı (boş grid = false). */
