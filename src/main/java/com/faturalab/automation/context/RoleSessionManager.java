@@ -772,6 +772,13 @@ public class RoleSessionManager {
 
             Thread.sleep(500);
 
+            // reCAPTCHA v3 gorunmez sekilde sayfa acilinca otomatik tetiklenir ve token'i
+            // async olarak #recaptchaField'a yazar (Application.java:235, LoginView.java:307-322).
+            // Sunucu tarafinda recaptchaValue.length() < 5 ise "Sign In" tiki SESSIZCE hicbir sey
+            // yapmiyor (sadece v3'u yeniden tetikleyip return ediyor) -- yani token gelmeden
+            // tiklarsak ilk tiklama bosa gider. Tiklamadan once token'in dolmasini bekle.
+            waitForRecaptchaTokenIfPresent(driver, js);
+
             if (loginBtn == null) {
                 log.warn("Login butonu bulunamadı, Enter ile deneniyor...");
                 if (passwordField != null) {
@@ -785,11 +792,122 @@ public class RoleSessionManager {
                 loginBtn.click();
             }
 
+            // reCAPTCHA token click aninda henuz gelmemisse ilk tiklama no-op olur (yukaridaki not).
+            // Ilk tiklama BASARILI olduysa Vaadin bir sunucu round-trip'i baslatir ve
+            // '#manual-loading-indicator' spinner'ini gosterir -- bu sirada login formu/recaptchaField
+            // hala DOM'da kalabilir, yani "hala login ekranindayiz" tespiti YANLIS POZITIF olabilir.
+            // Once loading indicator'in kaybolmasini/sayfa gecisini kisa bir poll ile bekle;
+            // ancak o poll sonunda GERCEKTEN hala login ekranindaysak (spinner yok, recaptchaField var,
+            // "GIRIS YAP" hala goruluyor) ikinci kez tikla -- gercek kullanicinin "tekrar tikla"
+            // davranisiyla ayni.
+            boolean stillOnLoginPage = false;
+            try {
+                org.openqa.selenium.support.ui.WebDriverWait settleWait =
+                        new org.openqa.selenium.support.ui.WebDriverWait(driver, java.time.Duration.ofSeconds(5));
+                settleWait.until(d -> {
+                    Boolean loadingVisible = (Boolean) js.executeScript(
+                        "var el = document.getElementById('manual-loading-indicator');" +
+                        "return !!(el && el.classList && el.classList.contains('is-visible'));");
+                    return !Boolean.TRUE.equals(loadingVisible);
+                });
+            } catch (org.openqa.selenium.TimeoutException te) {
+                log.warn("manual-loading-indicator 5sn icinde kaybolmadi -- yine de devam ediliyor.");
+            }
+            Thread.sleep(300);
+            stillOnLoginPage = isRecaptchaFieldPresent(js) && isStillOnLoginPage(driver);
+            if (stillOnLoginPage) {
+                log.warn("Ilk login tiklamasi reCAPTCHA token bekleme yuzunden no-op olmus olabilir, tekrar deneniyor...");
+                waitForRecaptchaTokenIfPresent(driver, js);
+                try {
+                    if (loginBtn != null) {
+                        loginBtn.click();
+                    } else if (passwordField != null) {
+                        passwordField.sendKeys(org.openqa.selenium.Keys.ENTER);
+                    }
+                } catch (org.openqa.selenium.WebDriverException retryClickEx) {
+                    // Buton stale/tiklanamaz ise Vaadin sayfayi zaten degistirmis demektir -- ilk
+                    // tiklama aslinda basariliydi, yukaridaki kontrol bir aninlik DOM/spinner
+                    // kalintisini "hala login ekranindayiz" sanmisti. Hata sayilmaz.
+                    log.info("Ikinci tiklama denemesi engellendi ({}) -- ilk tiklama zaten basarili sayiliyor.",
+                            retryClickEx.getClass().getSimpleName());
+                }
+            }
+
+            // V2 fallback: token gecersiz/cok fazla basarisiz denemede LoginView, gorunur
+            // reCAPTCHA checkbox widget'ini '#recaptcha' div'ine render eder (Application.java:261,
+            // grecaptcha.render(...)). Selenium bunu otomatik cozemez -- sessizce timeout yemek
+            // yerine acikca logla ki koşum sonucu teshis edilebilsin.
+            try {
+                Boolean v2Rendered = (Boolean) js.executeScript(
+                    "var el = document.getElementById('recaptcha');" +
+                    "return !!(el && el.innerHTML && el.innerHTML.trim() !== '');");
+                if (Boolean.TRUE.equals(v2Rendered)) {
+                    log.error("reCAPTCHA V2 GORUNUR CHECKBOX widget'i tetiklendi (#recaptcha dolu) -- " +
+                            "Selenium bunu otomatik cozemez. Muhtemel sebep: v3 token birden fazla " +
+                            "denemede gecersiz sayildi veya cok fazla basarisiz login denemesi yapildi. " +
+                            "Login bu noktadan sonra takilabilir.");
+                }
+            } catch (Exception ignored) {}
+
             log.info("Login formu gönderildi: {}", email);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (Exception e) {
             throw new RuntimeException("Login formu doldurulamadı: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * #recaptchaField DOM'da varsa (AppSettingsManager.isCaptchaEnabled()=true), reCAPTCHA v3'un
+     * async ürettiği token'in alana yazılmasını bekler (Application.java:235'teki
+     * "document.getElementById('recaptchaField').value = token" ile ayni id/deger).
+     * Alan hic yoksa (captcha kapali) hemen doner -- ek bekleme olmaz.
+     */
+    private static void waitForRecaptchaTokenIfPresent(WebDriver driver, org.openqa.selenium.JavascriptExecutor js) {
+        try {
+            Boolean present = (Boolean) js.executeScript(
+                "return document.getElementById('recaptchaField') != null;");
+            if (!Boolean.TRUE.equals(present)) {
+                return; // captcha kapali (dev'de CAPTCHA_ENABLED=CLOSED gibi) -- eski davranis
+            }
+            org.openqa.selenium.support.ui.WebDriverWait recaptchaWait =
+                    new org.openqa.selenium.support.ui.WebDriverWait(driver, java.time.Duration.ofSeconds(15));
+            recaptchaWait.until(d -> {
+                Object len = js.executeScript(
+                    "var f = document.getElementById('recaptchaField');" +
+                    "if (!f) return 0;" +
+                    "var v = f.value;" +
+                    "if ((!v || v.length < 5) && f.querySelector) {" +
+                    "  var inner = f.querySelector('input');" +
+                    "  if (inner) v = inner.value;" +
+                    "}" +
+                    "return v ? v.length : 0;");
+                return (len instanceof Number) && ((Number) len).longValue() >= 5;
+            });
+            log.info("reCAPTCHA v3 token dolduğu tespit edildi (recaptchaField >= 5 karakter).");
+        } catch (org.openqa.selenium.TimeoutException te) {
+            log.warn("reCAPTCHA v3 token 15sn içinde dolmadı -- yine de login denenecek (V2 fallback'e düşebilir).");
+        } catch (Exception e) {
+            log.warn("reCAPTCHA token bekleme kontrolü başarısız: {}", e.getMessage());
+        }
+    }
+
+    private static boolean isRecaptchaFieldPresent(org.openqa.selenium.JavascriptExecutor js) {
+        try {
+            Boolean present = (Boolean) js.executeScript(
+                "return document.getElementById('recaptchaField') != null;");
+            return Boolean.TRUE.equals(present);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private static boolean isStillOnLoginPage(WebDriver driver) {
+        try {
+            String body = driver.findElement(org.openqa.selenium.By.tagName("body")).getText();
+            return body.contains("GİRİŞ YAP") || body.contains("GİRİŞ");
+        } catch (Exception e) {
+            return false;
         }
     }
 
