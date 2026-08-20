@@ -58,10 +58,15 @@ pipeline {
                 // remainingAmount geri alma + tekrar teklif al'da temlik hatası vermemesi doğrulanır)
                 // — OP#5649 regresyon testi, 2026-08-19 2/2 yeşil doğrulandı. auctionCount alanı
                 // bilinen açık defect (#5905) olduğu için sadece loglanır, kesin assert edilmez.
+                // @recaptcha-login: RECAPTCHA-LOGIN-001 — reCAPTCHA v3 token bekleme + V2 fallback
+                // teşhisiyle admin login doğrulaması (OP#5909, OP#5255). @Before appsettings.
+                // CAPTCHA_ENABLED'i sadece bu senaryonun süresi boyunca OPEN yapar, @After (PASS/FAIL
+                // fark etmeden) tekrar CLOSED'a döndürür — diğer tüm senaryoların normal hızlı login
+                // akışı korunur (CaptchaDbAssertions, DTF'nin requireddtf toggle deseniyle aynı ilke).
                 sh '''
                     export DISPLAY=:99
                     Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001 or @dts or @dtf or @teklif-iptal"
+                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001 or @dts or @dtf or @teklif-iptal or @recaptcha-login"
                 '''
             }
         }
