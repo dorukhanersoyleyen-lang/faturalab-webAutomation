@@ -63,10 +63,16 @@ pipeline {
                 // CAPTCHA_ENABLED'i sadece bu senaryonun süresi boyunca OPEN yapar, @After (PASS/FAIL
                 // fark etmeden) tekrar CLOSED'a döndürür — diğer tüm senaryoların normal hızlı login
                 // akışı korunur (CaptchaDbAssertions, DTF'nin requireddtf toggle deseniyle aynı ilke).
+                // ⚠️ GÜNLÜK TAG LİSTESİNDEN KASITLI OLARAK ÇIKARILDI (2026-08-20, build #91 kanıtı,
+                // kullanıcı kararı — OP#5909): Jenkins'in headless Linux Chrome'unda Google reCAPTCHA
+                // v3 otomasyon oturumunu şüpheli bulup V2 görünür checkbox fallback'ine düşürüyor —
+                // Selenium bunu çözemez (insan etkileşimi gerekir). "Yeşil olana kadar geçit yok" —
+                // senaryo/toggle kodu repo'da kalıyor, elle `-Dcucumber.filter.tags=@recaptcha-login`
+                // ile koşulabilir; güvenilir yeşil bir çözüm bulunmadan günlük listeye eklenmeyecek.
                 sh '''
                     export DISPLAY=:99
                     Xvfb :99 -screen 0 1920x1080x24 > /dev/null 2>&1 &
-                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001 or @dts or @dtf or @teklif-iptal or @recaptcha-login"
+                    mvn -B verify -Dheadless=true -Dmaven.test.failure.ignore=true -Dcucumber.filter.tags="(@fatura and not @company and not @onay) or @tzf or @dfp-001 or @dts or @dtf or @teklif-iptal"
                 '''
             }
         }
