@@ -1132,11 +1132,27 @@ public class CompanyQuickOfferPage extends BasePageObject {
                 log.warn("[WP5649] 'Teklif Talebini İptal Et' bulunamadı. Modal butonları: {}", dump);
                 return false;
             }
-            Thread.sleep(700);
-            // "Onay" (Evet/Hayır) dialogu — pozitif buton "Evet"
-            acceptVaadinConfirmDialogIfPresent();
+            // "Onay" (Evet/Hayır) dialogu render gecikmesi için kısa poll ile bekle + "Evet"e bas.
+            // ⚠️ Paylaşılan acceptVaadinConfirmDialogIfPresent() BİLİNÇLİ OLARAK kullanılmıyor:
+            // o metod her tıklamadan sonra sabit waitForVaadinNavigation() (1500ms document.readyState
+            // beklemesi + ekstra Thread.sleep(1500)) + kendi Thread.sleep(500)'ünü uyguluyor — diğer
+            // 14 sayfa/akışta (admin güncelleme, DTS, kullanıcı ekleme vb.) bu doğru çünkü onlar sayfa
+            // navigasyonu bekliyor. BU akışta ise "Evet" sonrası başarı toast'ı SADECE 2000ms ekranda
+            // kalıyor (kaynak kod: Alert.info(title) → info(title, null, 2000), Alert.java:38-39).
+            // Paylaşılan helper'ın ~2000ms'lik sabit post-click gecikmesi TEK BAŞINA toast'ın ömrünü
+            // tüketiyordu; CI'daki (dev_ci) ekstra round-trip overhead'i eklenince toast tamamen
+            // kaçırılıyordu (Jenkins build #100 — bkz. repro_teklif_iptal_toast_flaky raporu).
+            // Bu yüzden "Evet" tıklaması ile toast poll'ünün BAŞLAMASI arasında SIFIR ek bekleme olmalı.
+            boolean evetClicked = clickEvetFastNoWait();
+            log.info("[WP5649] 'Evet' tıklandı mı: {}", evetClicked);
+            if (!evetClicked) {
+                log.warn("[WP5649] Onay dialogunda 'Evet' butonu bulunamadı — bordro {}.", bordroNo);
+                return false;
+            }
 
-            long deadline = System.currentTimeMillis() + 15000L;
+            // "Evet" tıklamasının HEMEN ardından, sıkı aralıklarla (200ms) toast'ı poll et.
+            // Toplam pencere CI yavaşlığı için 12sn — sorun süre değil, poll'un GEÇ BAŞLAMASIYDI.
+            long deadline = System.currentTimeMillis() + 12000L;
             while (System.currentTimeMillis() < deadline) {
                 Boolean success = (Boolean) js.executeScript(
                         "var cards = document.querySelectorAll('vaadin-notification-card');" +
@@ -1148,15 +1164,82 @@ public class CompanyQuickOfferPage extends BasePageObject {
                     log.info("[WP5649] Gerçek 'Teklif talebi iptal edildi.' toast'ı görüldü — bordro {}.", bordroNo);
                     return true;
                 }
-                Thread.sleep(500);
+                // Hata toast'ı çıktıysa (backend reddetti/ABF vb.) hemen FAIL — modal kapanmış
+                // olsa bile başarı sayma.
+                Object errorToast = js.executeScript(
+                        "var cards = document.querySelectorAll('vaadin-notification-card');" +
+                        "for (var c of cards){ var r=c.getBoundingClientRect(); if(r.width<2) continue;" +
+                        "  var t=(c.textContent||'').toLowerCase();" +
+                        "  if (t.includes('hata') || t.includes('başarısız') || t.includes('basarisiz')) return t; }" +
+                        "return null;");
+                if (errorToast != null) {
+                    log.warn("[WP5649] Hata toast'ı görüldü — bordro {} iptal edilemedi: {}", bordroNo, errorToast);
+                    return false;
+                }
+                Thread.sleep(200);
             }
-            log.warn("[WP5649] İptal toast'ı 15sn içinde görünmedi — bordro {}.", bordroNo);
+
+            // Fallback (toast'a güvenmek tek başına kırılgan — .claude/rules/web-automation.md
+            // "CI'da E2E flaky" kalıbı): kaynak kod (CompanyAuctionApprovalDialog) rejectAuction()
+            // başarılı OLMADAN exitSuccess(false)'u çağırmaz — yani "Onay"/Kabul-İptal modalının
+            // gerçekten KAPANMIŞ olması, kısa ömürlü toast'tan bağımsız ikinci bir başarı sinyalidir.
+            if (!isModalOpen()) {
+                log.warn("[WP5649] Toast 12sn içinde görünmedi ama modal kapandı — fallback sinyaliyle "
+                        + "başarı kabul ediliyor (bordro {}). Kaynak kod: rejectAuction() başarısız olsaydı "
+                        + "exitSuccess çağrılmaz, dialog açık kalırdı.", bordroNo);
+                return true;
+            }
+            log.warn("[WP5649] İptal toast'ı 12sn içinde görünmedi ve modal hâlâ açık — bordro {}.", bordroNo);
             return false;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             return false;
         } catch (Exception e) {
             log.warn("[WP5649] cancelAuctionForBordro ({}): {}", bordroNo, e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * "Onay" (Evet/Hayır) dialogunda "Evet" butonuna basar — ÇOK HAFİF, sabit bekleme yok.
+     *
+     * Paylaşılan {@link #acceptVaadinConfirmDialogIfPresent()}'ten FARKLI olarak tıklama sonrası
+     * {@code waitForVaadinNavigation()} veya ek {@code Thread.sleep} ÇAĞIRMAZ — sadece dialogun
+     * render gecikmesi ihtimaline karşı kısa aralıklı (150ms) bir bulma-poll'ü içerir. Bu, kısa
+     * ömürlü (2000ms) başarı toast'larını hemen ardından yakalaması gereken akışlar için tasarlandı
+     * (bkz. {@link #cancelAuctionForBordro(String)} javadoc'undaki kök neden açıklaması).
+     *
+     * @return "Evet" butonu bulunup tıklandıysa true
+     */
+    private boolean clickEvetFastNoWait() {
+        JavascriptExecutor js = (JavascriptExecutor) driver;
+        String script =
+                "var ovs = Array.from(document.querySelectorAll(" +
+                "  'vaadin-dialog-overlay, vaadin-confirm-dialog-overlay, vaadin-confirm-dialog'))" +
+                "  .filter(function(o){var r=o.getBoundingClientRect(); return r.width>2 || r.height>2;});" +
+                "for (var i = ovs.length - 1; i >= 0; i--) {" +
+                "  var ov = ovs[i];" +
+                "  var btns = ov.querySelectorAll('vaadin-button, button');" +
+                "  for (var b of btns) {" +
+                "    if (b.disabled) continue;" +
+                "    var t = (b.textContent||'').toLowerCase().replace(/\\s+/g,' ').trim();" +
+                "    if (t === 'evet' || t.indexOf('evet ') === 0) { b.click(); return true; }" +
+                "  }" +
+                "}" +
+                "return false;";
+        try {
+            Boolean clicked = (Boolean) js.executeScript(script);
+            long deadline = System.currentTimeMillis() + 6000L;
+            while (!Boolean.TRUE.equals(clicked) && System.currentTimeMillis() < deadline) {
+                Thread.sleep(150);
+                clicked = (Boolean) js.executeScript(script);
+            }
+            return Boolean.TRUE.equals(clicked);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return false;
+        } catch (Exception e) {
+            log.warn("[WP5649] clickEvetFastNoWait: {}", e.getMessage());
             return false;
         }
     }
