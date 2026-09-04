@@ -21,35 +21,42 @@ public class Hooks {
     
     private static final Logger log = LogManager.getLogger(Hooks.class);
     
-    @Before
+    // ⚠️ 2026-09-04: "not @api" eklendi. Bu hook'lar `com.faturalab.automation.stepdefinitions`
+    // (üst paket) glue'suna giren TÜM koşumlarda (TestRunner'ın günlük @api sağlık testleri +
+    // RegressionTestRunner'daki @api @regression senaryoları — 9 feature dosyası, hepsi doğrulandı:
+    // hiçbiri Selenium kullanmıyor) tetikleniyor ve saf REST senaryolarında bile gereksiz bir Chrome
+    // instance'ı açıp kapatıyordu (günlük CI koşumunda tekrar eden, gereksiz süre/kaynak maliyeti).
+    // Tek gerçek tüketicisi (`HomePage.feature`, @web @homepage @academy) @api etiketli değil,
+    // bu değişiklikten etkilenmez. Bkz. proje belleği project_qa_agent_research_20260904.
+    @Before("not @api")
     public void setUp(Scenario scenario) {
         log.info("Starting scenario: {}", scenario.getName());
-        
+
         // Ensure WebDriver directory exists for screenshots
         File screenshotsDir = new File("target/screenshots");
         if (!screenshotsDir.exists()) {
             screenshotsDir.mkdirs();
         }
-        
+
         // Initialize the WebDriver through the DriverManager
         WebDriver driver = DriverManager.getDriver();
         log.info("WebDriver initialized with session ID: {}", driver.toString());
     }
-    
-    @After
+
+    @After("not @api")
     public void tearDown(Scenario scenario) {
         log.info("Finishing scenario: {}, Status: {}", scenario.getName(), scenario.getStatus());
-        
+
         if (scenario.isFailed()) {
             WebDriver driver = DriverManager.getDriver();
             captureScreenshot(scenario, driver);
         }
-        
+
         // Quit the WebDriver
         DriverManager.quitDriver();
     }
-    
-    @AfterStep
+
+    @AfterStep("not @api")
     public void afterStep(Scenario scenario) {
         if (scenario.isFailed()) {
             WebDriver driver = DriverManager.getDriver();
