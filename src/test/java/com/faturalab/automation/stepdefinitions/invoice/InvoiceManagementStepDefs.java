@@ -875,22 +875,25 @@ public class InvoiceManagementStepDefs {
     private String getFutureDate(int daysFromNow) {
         Calendar cal = Calendar.getInstance();
         cal.add(Calendar.DAY_OF_MONTH, daysFromNow);
-        
-        // Skip weekends - direction depends on whether we're going forward or backward
+
+        // Hafta sonu VE sabit resmi tatil atla (resolveDateOrDefault'un TODAY+N dalıyla
+        // tutarlı hale getirildi — aksi halde varsayılan dueDate/additionalDueDate bir
+        // sabit tatile denk geldiğinde (örn. 29 Ekim) API INVALID_(ADDITIONAL_)DUE_DATE_HOLIDAY
+        // döner ve asıl test edilmek istenen validasyona hiç ulaşılmaz — bkz. 2026-09-14
+        // pipeline fail'i: today+45 == 29 Ekim Cumhuriyet Bayramı).
+        // Direction depends on whether we're going forward or backward.
         if (daysFromNow > 0) {
-            // Going forward - skip to next weekday
-            while (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || 
-                   cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
+            // Going forward - skip to next uygun (hafta içi + tatil dışı) gün
+            while (isWeekendOrFixedHoliday(cal)) {
                 cal.add(Calendar.DAY_OF_MONTH, 1);
             }
         } else if (daysFromNow < 0) {
-            // Going backward - skip to previous weekday
-            while (cal.get(Calendar.DAY_OF_WEEK) == Calendar.SATURDAY || 
-                   cal.get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
+            // Going backward - skip to previous uygun gün
+            while (isWeekendOrFixedHoliday(cal)) {
                 cal.add(Calendar.DAY_OF_MONTH, -1);
             }
         }
-        
+
         SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
         return sdf.format(cal.getTime());
     }
