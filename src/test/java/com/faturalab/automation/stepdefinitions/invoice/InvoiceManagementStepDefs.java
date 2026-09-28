@@ -651,7 +651,10 @@ public class InvoiceManagementStepDefs {
                         || "NULL".equalsIgnoreCase(providedAdditionalDueDate.trim()))) {
             additionalDueDateToUse = null;
         } else {
-            additionalDueDateToUse = resolveDateOrDefault(providedAdditionalDueDate, dueDateToUse);
+            // HOLIDAY ek vadede vadeden SONRAKİ ilk 29 Ekim olmalı — aksi halde vade tatilden
+            // kayıp 29 Ekim'i geçince INVALID_ADDITIONAL_DUE_DATE_AFTER döner (build 135, 2026-09-28:
+            // TODAY+30=28 Eki → 30 Eki'ye kaydı, HOLIDAY=29 Eki ondan önce kaldı).
+            additionalDueDateToUse = resolveDateOrDefault(providedAdditionalDueDate, dueDateToUse, dueDateToUse);
         }
         
         // Hash & taxExclusive: honor provided columns exactly; don't auto-generate if column exists
@@ -808,9 +811,14 @@ public class InvoiceManagementStepDefs {
      *   TODAY, TODAY+N, TODAY-N -> bugüne göre gün ofseti. Pozitif ofsetlerde hafta sonu ve
      *                              sabit resmi tatiller İLERİ atlanır (geçerli tarih beklenen
      *                              senaryoların tatil validasyonuna yanlışlıkla takılmaması için).
-     *   HOLIDAY                 -> bir sonraki 29 Ekim (Cumhuriyet Bayramı — holiday tablosunda fixed).
+     *   HOLIDAY                 -> bugünden (ya da verilmişse holidayAfter tarihinden) SONRAKİ ilk 29 Ekim
+     *                              (Cumhuriyet Bayramı — holiday tablosunda fixed).
      */
     private String resolveDateOrDefault(String raw, String defaultValue) {
+        return resolveDateOrDefault(raw, defaultValue, null);
+    }
+
+    private String resolveDateOrDefault(String raw, String defaultValue, String holidayAfter) {
         if (raw == null || raw.trim().isEmpty()) {
             return defaultValue;
         }
@@ -839,13 +847,14 @@ public class InvoiceManagementStepDefs {
         }
 
         if ("HOLIDAY".equalsIgnoreCase(v)) {
-            Calendar now = Calendar.getInstance();
-            Calendar oct29 = Calendar.getInstance();
-            oct29.set(now.get(Calendar.YEAR), Calendar.OCTOBER, 29);
-            if (!oct29.getTime().after(now.getTime())) {
-                oct29.add(Calendar.YEAR, 1);
+            java.time.LocalDate after = java.time.LocalDate.now();
+            if (holidayAfter != null && !holidayAfter.trim().isEmpty()) {
+                java.time.LocalDate ref = java.time.LocalDate.parse(holidayAfter.trim());
+                if (ref.isAfter(after)) {
+                    after = ref;
+                }
             }
-            return sdf.format(oct29.getTime());
+            return com.faturalab.automation.utils.HolidayCalendar.nextReferenceHolidayAfter(after).toString();
         }
 
         return v;
@@ -853,18 +862,10 @@ public class InvoiceManagementStepDefs {
 
     /** Hafta sonu veya sabit tarihli TR resmi tatili mi? (Dini bayramlar yıla göre değişir, kapsam dışı.) */
     private boolean isWeekendOrFixedHoliday(Calendar cal) {
-        int dow = cal.get(Calendar.DAY_OF_WEEK);
-        if (dow == Calendar.SATURDAY || dow == Calendar.SUNDAY) {
-            return true;
-        }
-        int month = cal.get(Calendar.MONTH);
-        int day = cal.get(Calendar.DAY_OF_MONTH);
-        return (month == Calendar.JANUARY && day == 1)
-                || (month == Calendar.APRIL && day == 23)
-                || (month == Calendar.MAY && (day == 1 || day == 19))
-                || (month == Calendar.JULY && day == 15)
-                || (month == Calendar.AUGUST && day == 30)
-                || (month == Calendar.OCTOBER && (day == 28 || day == 29));
+        // Tatil kaynağı: DB holiday tablosu (HolidayCalendar) — dini bayramlar dahil, DB ile aynı.
+        java.time.LocalDate d = java.time.LocalDate.of(cal.get(Calendar.YEAR),
+                cal.get(Calendar.MONTH) + 1, cal.get(Calendar.DAY_OF_MONTH));
+        return !com.faturalab.automation.utils.HolidayCalendar.isBusinessDay(d);
     }
 
     private String getCurrentDate() {

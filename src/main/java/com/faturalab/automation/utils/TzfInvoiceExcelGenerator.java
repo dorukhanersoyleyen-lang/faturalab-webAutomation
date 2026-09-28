@@ -43,11 +43,6 @@ public final class TzfInvoiceExcelGenerator {
     private static final DateTimeFormatter TR_DATE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     private static final DateTimeFormatter INVOICE_NO_STAMP = DateTimeFormatter.ofPattern("yyMMddHHmmss");
 
-    /** Resmî TR tatilleri (sabit tarihli). Dini bayramlar yıla göre değiştiğinden kapsam dışı. */
-    private static final Set<MonthDay> TR_HOLIDAYS = new HashSet<>(Arrays.asList(
-            MonthDay.of(1, 1), MonthDay.of(4, 23), MonthDay.of(5, 1), MonthDay.of(5, 19),
-            MonthDay.of(7, 15), MonthDay.of(8, 30), MonthDay.of(10, 29)));
-
     private static final String[] HEADERS = {
             "No", "Ticari İşletme Adı", "Ticari İşletme VKN*",
             "Fatura No*", "Fatura Tarihi*", "Vade Tarihi*", "Ek Vade Tarihi",
@@ -295,9 +290,8 @@ public final class TzfInvoiceExcelGenerator {
     // ─── Tarih / tutar yardımcıları ──────────────────────────────────────────
 
     private static boolean isBusinessDay(LocalDate d) {
-        return d.getDayOfWeek() != DayOfWeek.SATURDAY
-                && d.getDayOfWeek() != DayOfWeek.SUNDAY
-                && !TR_HOLIDAYS.contains(MonthDay.from(d));
+        // Tatil kaynağı: DB holiday tablosu (HolidayCalendar) — statik liste DB'den sapıyordu (2026-09-28).
+        return HolidayCalendar.isBusinessDay(d);
     }
 
     private static LocalDate previousBusinessDay(LocalDate d) {

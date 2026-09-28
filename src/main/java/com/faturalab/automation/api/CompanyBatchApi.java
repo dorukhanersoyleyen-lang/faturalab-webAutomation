@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.faturalab.automation.config.ConfigReader;
+import com.faturalab.automation.utils.HolidayCalendar;
 import io.restassured.RestAssured;
 import io.restassured.response.Response;
 import org.apache.logging.log4j.LogManager;
@@ -41,11 +42,6 @@ public class CompanyBatchApi {
     private static final Logger log = LogManager.getLogger(CompanyBatchApi.class);
     private static final String BASE_PATH = "/api/integration/company/v0";
     private static final DateTimeFormatter ISO_DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-    /** Resmî TR tatilleri (sabit tarihli) — {@code TzfInvoiceExcelGenerator} ile aynı set. */
-    private static final Set<MonthDay> TR_HOLIDAYS = new HashSet<>(Arrays.asList(
-            MonthDay.of(1, 1), MonthDay.of(4, 23), MonthDay.of(5, 1), MonthDay.of(5, 19),
-            MonthDay.of(7, 15), MonthDay.of(8, 30), MonthDay.of(10, 29)));
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final String host;
@@ -92,9 +88,9 @@ public class CompanyBatchApi {
     // ─── Hafta sonu / resmi tatil ileri-kaydırma (batchDueDate/batchClosureDate İŞ GÜNÜ olmalı) ───
 
     private static boolean isBusinessDay(LocalDate d) {
-        return d.getDayOfWeek() != DayOfWeek.SATURDAY
-                && d.getDayOfWeek() != DayOfWeek.SUNDAY
-                && !TR_HOLIDAYS.contains(MonthDay.from(d));
+        // Tatil kaynağı: DB holiday tablosu (HolidayCalendar) — statik liste 28 Ekim arifesini
+        // bilmiyordu → build 135'te DTS vadesi INVALID_DUE_DATE_HOLIDAY aldı (2026-09-28).
+        return HolidayCalendar.isBusinessDay(d);
     }
 
     /** Verilen tarihten itibaren en yakın (kendisi dahil) iş gününü döner. */
