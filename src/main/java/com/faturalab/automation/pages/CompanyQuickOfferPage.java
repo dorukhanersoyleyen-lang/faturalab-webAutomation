@@ -925,7 +925,10 @@ public class CompanyQuickOfferPage extends BasePageObject {
             //    CompanyAuctionConfirmDialog:280-320 success(CurrentAccount) callback). Ara dialogu
             //    genel onay butonuyla ilerlet, sonra gerçek başarı toast'ını bekle. Toast yoksa FAIL
             //    (auction WAITING kalır — DB-dürüst sinyal, #5798).
-            long deadline = System.currentTimeMillis() + 15000L;
+            // Hizmet bedeli > 0 ise "Evet"ten ~20 sn sonra "Ödeme Bilgileri Girişi" açılıyor (dev'de
+            // canlı ölçüldü, 29.09.2026) → 15 sn yetmiyordu; CI yavaşlığı için 45 sn.
+            long deadline = System.currentTimeMillis() + 45000L;
+            long[] lastPaymentClick = {0L};
             while (System.currentTimeMillis() < deadline) {
                 // Gerçek başarı toast'ı?
                 Boolean success = (Boolean) js.executeScript(
@@ -948,6 +951,13 @@ public class CompanyQuickOfferPage extends BasePageObject {
                 if (Boolean.TRUE.equals(warn)) {
                     log.warn("ABF uyarısı çıktı — commit olmadı.");
                     return false;
+                }
+                // Hizmet bedeli ödeme dialogu ("Ödeme Bilgileri Girişi") → Havale/EFT + "Devam Et".
+                String payment = advancePaymentDialogIfPresent(js, lastPaymentClick);
+                if (payment != null) {
+                    log.info("Ödeme dialogu: {}", payment);
+                    Thread.sleep(600);
+                    continue;
                 }
                 // Ara dialog (cari hesap/ödeme) açıldıysa: genel onay/seç/devam butonuna bas.
                 Object follow = js.executeScript(
@@ -974,6 +984,59 @@ public class CompanyQuickOfferPage extends BasePageObject {
             log.warn("checkAbfAndConfirmAccept: {}", e.getMessage());
             return false;
         }
+    }
+
+    /** "Devam Et" tıklamaları arası min. süre — ilk tıklama sunucuya işlemeyebiliyor, çift submit'i önle. */
+    private static final long PAYMENT_CLICK_INTERVAL_MS = 3000L;
+
+    /**
+     * Hizmet bedeli > 0 olan teklif kabulünde "Evet" sonrası açılan "Ödeme Bilgileri Girişi"
+     * ({@code CompanyAddPaymentDialog}) dialogunu Havale/EFT ile ilerletir. Varsayılan yöntem
+     * Kredi Kartı'dır ve kart ödemesi otomasyonda yapılamaz; Havale/EFT seçilince buton
+     * "Devam Et" olur ve kabul commit edilir (cari hesaba PENDING/EFT kayıt düşer).
+     * Kök neden: serviceFeeDefault "Vade Bazlı Hizmet Bedeli Oranı FL Payı" %0 → %1
+     * (21.09.2026); dev'de canlı doğrulandı — A2026_79180 ACCEPTED (29.09.2026).
+     *
+     * @return dialog yoksa null; varsa yapılan adımın kısa açıklaması
+     */
+    private String advancePaymentDialogIfPresent(JavascriptExecutor js, long[] lastClick) throws InterruptedException {
+        Object state = js.executeScript(
+                "var ov = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                "  .filter(function(o){return o.getBoundingClientRect().width>2" +
+                "    && (o.textContent||'').indexOf('Ödeme Bilgileri') >= 0;}).pop();" +
+                "if (!ov) return null;" +
+                "var cb = ov.querySelector('vaadin-combo-box');" +
+                "var val = cb ? (cb.querySelector('input') || {}).value || '' : '';" +
+                "return val;");
+        if (state == null) {
+            return null;
+        }
+        String method = String.valueOf(state);
+        if (!method.toLowerCase(java.util.Locale.ROOT).contains("havale")) {
+            // Combo'yu aç, "Havale/EFT" öğesine tıkla (öğeler ayrı overlay'de lazy render edilir).
+            js.executeScript(
+                    "var ov = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                    "  .filter(function(o){return (o.textContent||'').indexOf('Ödeme Bilgileri') >= 0;}).pop();" +
+                    "var cb = ov && ov.querySelector('vaadin-combo-box'); if (cb) cb.opened = true;");
+            Thread.sleep(1500);
+            Object picked = js.executeScript(
+                    "var it = Array.from(document.querySelectorAll('vaadin-combo-box-item'))" +
+                    "  .find(function(i){return (i.textContent||'').trim().indexOf('Havale') === 0;});" +
+                    "if (!it) return false; it.click(); return true;");
+            return "yöntem=" + method + " → Havale/EFT seçimi: " + picked;
+        }
+        long now = System.currentTimeMillis();
+        if (now - lastClick[0] < PAYMENT_CLICK_INTERVAL_MS) {
+            return "Havale/EFT seçili — Devam Et sonucu bekleniyor";
+        }
+        Object clicked = js.executeScript(
+                "var ov = Array.from(document.querySelectorAll('vaadin-dialog-overlay'))" +
+                "  .filter(function(o){return (o.textContent||'').indexOf('Ödeme Bilgileri') >= 0;}).pop();" +
+                "var b = ov && Array.from(ov.querySelectorAll('vaadin-button'))" +
+                "  .find(function(x){return !x.disabled && (x.textContent||'').trim() === 'Devam Et';});" +
+                "if (!b) return false; b.click(); return true;");
+        lastClick[0] = now;
+        return "Havale/EFT → 'Devam Et' tıklandı: " + clicked;
     }
 
     /**

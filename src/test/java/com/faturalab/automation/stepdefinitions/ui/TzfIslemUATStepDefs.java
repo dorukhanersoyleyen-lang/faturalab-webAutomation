@@ -138,16 +138,30 @@ public class TzfIslemUATStepDefs {
     @Then("yüklenen faturalar tedarikçi listesinde görünmeli")
     public void faturalarTedarikciListesindeGorunmeli() {
         CompanyInvoicePage page = getCompanyInvoicePage();
-        page.navigateToInvoiceList();
+        // ⚠️ GERÇEK KÖK NEDEN (03.09.2026, lokal repro ile doğrulandı — sadece retry/backoff
+        // artışı YETMEDİ, 5 deneme×5sn backoff'la da aynı fatura filtre listesinde HİÇ
+        // bulunamadı): upload dialogu tedarikçinin zaten üzerinde olduğu "Yüklenmişler"
+        // görünümünden açılıyor; upload sonrası çağrılan navigateToInvoiceList()'in "zaten
+        // yüklü" kısayolu (grid + FATURA_YUKLE_BTN DOM'da hazır bulununca menüye hiç
+        // tıklamadan dönüyor) gerçek bir sayfa/grid navigasyonu TETİKLEMİYOR — filtre
+        // dialogunun değer listesi upload ÖNCESİ snapshot'tan geliyor, yeni fatura hiçbir
+        // zaman listede belirmiyor (retry sonsuza kadar aynı eksik listeyi görür).
+        // Aynı sınıfta bu kısayolun analog bir yanlış-pozitifi (WP#5649) zaten
+        // navigateToInvoiceListForced() ile çözülmüştü (bkz. TeklifTalebiIptalUATStepDefs).
+        // ⚠️ 29.09.2026: forced tıklama da YETMEDİ — zaten açık menüye tekrar basmak aynı view'i
+        // koruyor, grid tazelenmiyor (sidebar "Yüklenmişler 3" ama grid 2 satır). Önce başka menüye
+        // gidip dönen fresh navigasyon kullanılıyor.
+        page.navigateToInvoiceListFresh();
 
         // Liste virtual scroll kullanır — bizim satırlar render edilmemiş olabilir.
         // Fatura No kolon filtresiyle grid'i sadece bizim faturalara indir.
         java.util.List<String> invoiceNos = TzfScenarioContext.getInvoices().stream()
                 .map(i -> i.invoiceNo)
                 .collect(java.util.stream.Collectors.toList());
-        // Filtre ikonu tıklaması Vaadin'de sunucuya işlemeyip dialog açılmayabilir → 3 deneme
+        // Filtre ikonu tıklaması Vaadin'de sunucuya işlemeyip dialog açılmayabilir → deneme
+        // sayısı CI'nın yavaşlığına karşı tampon sağlar; asıl fix yukarıdaki forced navigasyon.
         boolean filtered = com.faturalab.automation.utils.VaadinGridFilterHelper
-                .applyOnlyValuesWithRetry(DriverManager.getDriver(), "Fatura No", invoiceNos, 3);
+                .applyOnlyValuesWithRetry(DriverManager.getDriver(), "Fatura No", invoiceNos, 5);
         Assert.assertTrue(filtered,
                 "Fatura No filtresi uygulanamadı — faturalar listede yok olabilir: " + invoiceNos);
 

@@ -126,17 +126,20 @@
     Ve hata mesajı 'Invalid Tax Id' içermeli
     Ve fatura yüklenmemiş olmalı
 
-  @pending @manual
+  @discounted @buyer
   Senaryo: Fatura ıskontolanmış - DISCOUNTED_INVOICE
-    # NOT: API aslında EXIST_INVOICE kodu dönüyor (zaten sistemde olan fatura)
-    # Bu senaryo manuel test gerektirir - spesifik discounted invoice durumu için
-    Eğer ki aşağıdaki alanlarla fatura yüklenmeye çalışılırsa
-      | invoiceNo        | supplierTaxNo | invoiceAmount | invoiceType |
-      | DSC-INV-0001     | 4050604050    | 1000          | E_FATURA    |
+    # DISCOUNTED_INVOICE yalnızca teklif talebi yükleme (/auction) akışında döner
+    # (Api.checkExistInvoices → existInvoice.isCompleted()); /invoice/upload bu durumda
+    # EXIST_INVOICE döner. Test verisi her koşumda DB'den seçilir: ALBC'nin en son
+    # iskontolanmış (completed, active) faturası — statik fixture yok.
+    # ⚠️ Bu dosyadaki "Arka Plan:" Türkçe Gherkin'de koşmuyor (anahtar kelime "Geçmiş:");
+    # auction adımı paylaşılan oturuma ihtiyaç duyduğu için kimlik doğrulama burada açıkça yapılır.
+    Diyelim ki "dev.faturalab.buyer.albc" ortamı kullanılıyor
+    Ve kullanıcı kimlik doğrulaması yapıldı
+    Eğer ki daha önce iskontolanmış bir fatura ile auction fatura yüklenmeye çalışılırsa
     O zaman hata mesajı alınmalı
-    Ve hata kodu 'EXIST_INVOICE' olmalı
-    Ve hata mesajı 'Invoice available in the system' içermeli
-    Ve fatura yüklenmemiş olmalı
+    Ve hata kodu 'DISCOUNTED_INVOICE' olmalı
+    Ve auction fatura yüklenmemiş olmalı
 
   # ─── Vade / Ek Vade Tarihi Validasyonları ──────────────────────────────────
   # Beklenen kod + mesajlar KAYNAK KODDAN alındı (web-application, origin/vaadin-24):

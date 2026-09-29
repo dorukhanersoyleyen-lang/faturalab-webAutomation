@@ -271,19 +271,10 @@ public class InvoiceTestDataGenerator {
     }
     
     public static String getFutureWorkingDate(int days) {
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.DAY_OF_MONTH, days);
-        
-        // Skip weekends
-        int dayOfWeek = cal.get(Calendar.DAY_OF_WEEK);
-        if (dayOfWeek == Calendar.SATURDAY) {
-            cal.add(Calendar.DAY_OF_MONTH, 2);
-        } else if (dayOfWeek == Calendar.SUNDAY) {
-            cal.add(Calendar.DAY_OF_MONTH, 1);
-        }
-        
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-        return sdf.format(cal.getTime());
+        // Hafta sonu + DB tatilleri (HolidayCalendar) atlanır — eskiden yalnızca hafta sonu
+        // atlanıyordu; today+30 = 28 Ekim arifesine düşünce API INVALID_(ADDITIONAL_)DUE_DATE_HOLIDAY
+        // dönüyordu (2026-09-28).
+        return HolidayCalendar.nextBusinessDay(java.time.LocalDate.now().plusDays(days)).toString();
     }
     
     public static String getCurrentDateTimeISO() {
