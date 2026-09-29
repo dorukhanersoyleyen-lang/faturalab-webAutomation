@@ -96,4 +96,78 @@ public final class InvoiceDbAssertions {
             throw new RuntimeException("invoice salt-okunur sorgusu başarısız: " + e.getMessage(), e);
         }
     }
+
+    /** Daha önce iskontolanmış (completed) bir faturanın, teklif talebine yeniden sokmak için gereken alanları. */
+    public static final class DiscountedInvoice {
+        public final long id;
+        public final String invoiceNo;
+        public final String supplierTaxNo;
+        public final BigDecimal payableAmount;
+        public final String packageNo;
+        public final String orderNo;
+        public final String itemNo;
+
+        DiscountedInvoice(long id, String invoiceNo, String supplierTaxNo, BigDecimal payableAmount,
+                          String packageNo, String orderNo, String itemNo) {
+            this.id = id;
+            this.invoiceNo = invoiceNo;
+            this.supplierTaxNo = supplierTaxNo;
+            this.payableAmount = payableAmount;
+            this.packageNo = packageNo;
+            this.orderNo = orderNo;
+            this.itemNo = itemNo;
+        }
+
+        @Override
+        public String toString() {
+            return "DiscountedInvoice{id=" + id + ", invoiceNo=" + invoiceNo + ", supplierTaxNo=" + supplierTaxNo
+                    + ", payableAmount=" + payableAmount + "}";
+        }
+    }
+
+    /**
+     * Alıcının (VKN) en son iskontolanmış ({@code completed=true}, {@code active=true}) faturasını döner.
+     * {@code DISCOUNTED_INVOICE} validasyonu için statik fixture yerine her koşumda DB'den gerçek kayıt
+     * seçilir — eski {@code DSC-INV-0001} fixture'ı hiç iskontolanmamıştı (2026-09-28, build 136).
+     */
+    public static Optional<DiscountedInvoice> findDiscountedInvoiceForBuyer(String buyerTaxNo) {
+        String jdbcUrl = ConfigReader.getProperty("loadtest.db.url");
+        String dbUser = ConfigReader.getProperty("loadtest.db.user");
+        String dbPassword = ConfigReader.getProperty("loadtest.db.password");
+
+        String sql = "SELECT i.id, i.invoiceno, c.taxnumber, i.payableamount, i.packageno, i.orderno, i.itemno "
+                + "FROM invoice i JOIN company c ON c.id = i.companyid "
+                + "WHERE i.customerid = ? AND i.completed = true AND i.active = true "
+                // Makul tutar: dev'de 677M TL gibi uç değerli kayıtlar tutar limitlerine takılıp
+                // DISCOUNTED_INVOICE kontrolüne ulaşmadan başka hata döndürebilir.
+                + "AND i.payableamount BETWEEN 1000 AND 1000000 "
+                + "ORDER BY i.id DESC LIMIT 1";
+
+        try (Connection connection = DriverManager.getConnection(jdbcUrl, dbUser, dbPassword)) {
+            connection.setReadOnly(true);
+            try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                ps.setString(1, buyerTaxNo);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        log.warn("[INVOICE-DB] alıcı VKN={} için iskontolanmış fatura bulunamadı.", buyerTaxNo);
+                        return Optional.empty();
+                    }
+                    DiscountedInvoice row = new DiscountedInvoice(
+                            rs.getLong("id"),
+                            rs.getString("invoiceno"),
+                            rs.getString("taxnumber"),
+                            rs.getBigDecimal("payableamount"),
+                            rs.getString("packageno"),
+                            rs.getString("orderno"),
+                            rs.getString("itemno"));
+                    log.info("[INVOICE-DB] alıcı VKN={} için iskontolanmış fatura: {}", buyerTaxNo, row);
+                    return Optional.of(row);
+                }
+            }
+        } catch (Exception e) {
+            log.error("[INVOICE-DB] iskontolanmış fatura sorgusu başarısız (alıcı VKN={}): {}",
+                    buyerTaxNo, e.getMessage(), e);
+            throw new RuntimeException("iskontolanmış fatura salt-okunur sorgusu başarısız: " + e.getMessage(), e);
+        }
+    }
 }

@@ -465,10 +465,57 @@ public class AuctionInvoiceUploadStepDefs {
         lastResponse = faturalabAPI.uploadAuction(lastAuctionRequest);
         CucumberHooks.setSharedLastResponse(lastResponse);
         
-        log.info("Duplicate invoice upload attempt - Status: {}, Response: {}", 
+        log.info("Duplicate invoice upload attempt - Status: {}, Response: {}",
                 lastResponse.getStatusCode(), lastResponse.getBody().asString());
     }
-    
+
+    /**
+     * DISCOUNTED_INVOICE negatif testi: alıcının daha önce iskontolanmış (completed) GERÇEK bir
+     * faturası DB'den seçilip teklif talebine yeniden sokulur. API bu kontrolü yalnızca /auction
+     * akışında yapar (Api.checkExistInvoices → existInvoice.isCompleted()); /invoice/upload hiç
+     * DISCOUNTED_INVOICE dönmez — eski senaryo bu yüzden yalnızca EXIST_INVOICE'u test ediyordu.
+     */
+    @When("^daha önce iskontolanmış bir fatura ile auction fatura yüklenmeye çalışılırsa$")
+    public void iskontolanmis_fatura_ile_auction_yuklenmeye_calisilirsa() {
+        ensureAPIInitialized();
+        String buyerTaxNo = com.faturalab.automation.config.ConfigReader
+                .getProperty("buyer.taxno", "3456789010");
+        com.faturalab.automation.db.InvoiceDbAssertions.DiscountedInvoice discounted =
+                com.faturalab.automation.db.InvoiceDbAssertions.findDiscountedInvoiceForBuyer(buyerTaxNo)
+                        .orElseThrow(() -> new AssertionError(
+                                "Ön koşul: alıcı " + buyerTaxNo + " için iskontolanmış (completed) fatura DB'de yok"));
+        log.info("DISCOUNTED_INVOICE testi için seçilen fatura: {}", discounted);
+
+        // Boş constructor: iskontolanmış faturaların packageNo'su genelde null — 4 argümanlı
+        // constructor packageNo'dan orderNo/itemNo türetirken NPE veriyor.
+        AuctionInvoice inv = new AuctionInvoice();
+        inv.setPackageNo(discounted.packageNo);
+        inv.setSupplierTaxNo(discounted.supplierTaxNo);
+        inv.setInvoiceAmount(discounted.payableAmount.doubleValue());
+        inv.setInvoiceType("PAPER");
+        inv.setInvoiceNo(discounted.invoiceNo);
+        inv.setOrderNo(discounted.orderNo);
+        inv.setItemNo(discounted.itemNo);
+        inv.setRequestedAmount(discounted.payableAmount.doubleValue());
+        inv.setTaxExclusiveAmount(discounted.payableAmount.doubleValue());
+        inv.setCurrencyType("TL");
+        inv.setDueDate(InvoiceTestDataGenerator.getFutureWorkingDate(30));
+        inv.setExtraInvoiceDueDay(0);
+        inv.setInvoiceDate(InvoiceTestDataGenerator.getCurrentDate());
+        inv.setInvoiceETTN("");
+        inv.setInvoiceTypeCode("SATIS");
+
+        lastReferenceNo = InvoiceTestDataGenerator.generateUniqueReferenceNo();
+        lastAuctionRequest = new UploadAuctionRequest(Collections.singletonList(inv), lastReferenceNo,
+                faturalabAPI.getEnvironment().getUserEmail());
+        lastResponse = faturalabAPI.uploadAuction(lastAuctionRequest);
+        // Ortak hata kodu/mesajı adımları yanıtı shared holder'dan okur.
+        CucumberHooks.setSharedLastResponse(lastResponse);
+
+        log.info("Discounted invoice auction upload attempt - Status: {}, Response: {}",
+                lastResponse.getStatusCode(), lastResponse.getBody().asString());
+    }
+
     @Then("^auction fatura yüklenmemiş olmalı$")
     public void auction_fatura_yuklenmemis_olmali() {
         Assert.assertNotNull(lastResponse, "Response should not be null");

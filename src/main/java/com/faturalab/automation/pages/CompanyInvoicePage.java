@@ -156,6 +156,53 @@ public class CompanyInvoicePage extends BasePageObject {
         }
     }
 
+    private final By ISLEMDEKILER_MENU = By.xpath(
+            "//vaadin-button[contains(@class,'menu-button') and contains(normalize-space(),'İşlemdekiler')]");
+
+    /**
+     * Yüklenmişler grid'ini TAZE veriyle açar: önce başka bir menüye (İşlemdekiler) gidip sonra
+     * Yüklenmişler'e döner. Zaten açık olan menü öğesine tekrar tıklamak ({@link #navigateToInvoiceListForced()})
+     * Vaadin'de aynı view nesnesini koruyor ve grid verisini yenilemiyor — upload sonrası sidebar sayacı
+     * artıyor ("Yüklenmişler 3") ama grid ve "Fatura No" filtre listesi eski kalıyordu (DFP-001,
+     * lokal koşum fail ekran görüntüsüyle kanıtlandı, 29.09.2026).
+     */
+    public void navigateToInvoiceListFresh() {
+        try {
+            tryOpenNavigationDrawer();
+            org.openqa.selenium.WebElement other = new org.openqa.selenium.support.ui.WebDriverWait(
+                    driver, java.time.Duration.ofSeconds(10))
+                    .until(ExpectedConditions.elementToBeClickable(ISLEMDEKILER_MENU));
+            other.click();
+            log.info("(fresh) Ara navigasyon: 'İşlemdekiler' tıklandı.");
+            waitForVaadinNavigation();
+        } catch (Exception e) {
+            log.warn("navigateToInvoiceListFresh ara navigasyon başarısız: {}", e.getMessage());
+        }
+        // İşlemdekiler'in yükleme örtüsü kalkmadan Yüklenmişler tıklaması "element click intercepted"
+        // alıyor (TZF-001 lokal koşum, 29.09.2026) — örtü kalkana kadar tekrar dene.
+        for (int attempt = 1; attempt <= FRESH_NAV_MAX_ATTEMPTS; attempt++) {
+            try {
+                driver.findElement(YUKLENMISLER_MENU).click();
+                log.info("(fresh) 'Yüklenmişler' tıklandı (deneme {}).", attempt);
+                waitForVaadinNavigation();
+                return;
+            } catch (Exception e) {
+                log.info("(fresh) 'Yüklenmişler' tıklanamadı (deneme {}): {}", attempt,
+                        e.getClass().getSimpleName());
+                try {
+                    Thread.sleep(FRESH_NAV_RETRY_MS);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+        navigateToInvoiceListForced();
+    }
+
+    private static final int FRESH_NAV_MAX_ATTEMPTS = 8;
+    private static final long FRESH_NAV_RETRY_MS = 1500L;
+
     /** @deprecated {@link #navigateToInvoiceList()} kullanın */
     public void navigateToFaturalar() {
         navigateToInvoiceList();
