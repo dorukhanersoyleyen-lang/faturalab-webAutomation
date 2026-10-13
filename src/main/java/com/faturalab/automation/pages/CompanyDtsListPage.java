@@ -34,12 +34,28 @@ public class CompanyDtsListPage extends BasePageObject {
      * TZF/DFP ile aynı kalıp: clickNavItemByText (shadow-DOM + light-DOM fallback).
      */
     public boolean navigateToDts() {
+        long deadline = System.currentTimeMillis() + SIDEBAR_WAIT_SECONDS * 1000L;
+        do {
+            if (navigateToDtsOnce()) {
+                return true;
+            }
+            try {
+                Thread.sleep(MENU_RETRY_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        } while (System.currentTimeMillis() < deadline);
+        return false;
+    }
+
+    private boolean navigateToDtsOnce() {
         tryOpenNavigationDrawer();
         // Şirkete özel sidebar (privilege'e göre dinamik üretilir) impersonation sonrası
         // hemen render olmayabilir — ilk denemede sadece footer linkleri (Üyelik Sözleşmesi/
         // KVKK) görünmesi "sidebar henüz yüklenmedi" belirtisi (2026-08-05 canlı gözlem).
         // Gerçek menü öğeleri (>4 link) görünene kadar kısa poll.
-        waitForSidebarPopulated(8);
+        waitForSidebarPopulated(SIDEBAR_WAIT_SECONDS);
         if (clickNavItemByText("doğrudan tahsilat sistemi") || clickNavItemByText("dogrudan tahsilat sistemi")) {
             waitForVaadinNavigation();
             return true;

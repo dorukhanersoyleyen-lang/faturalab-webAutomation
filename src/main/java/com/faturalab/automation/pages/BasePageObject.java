@@ -20,6 +20,11 @@ public abstract class BasePageObject {
     protected WaitHelper waitHelper;
     protected static final Logger log = LogManager.getLogger(BasePageObject.class);
 
+    /** CI yavaş (impersonation sonrası sidebar geç dolar): sidebar dolma + menü bulma poll süresi (sn). */
+    protected static final int SIDEBAR_WAIT_SECONDS = 40;
+    /** Menü tıklama tekrar denemeleri arasındaki bekleme (ms). */
+    protected static final long MENU_RETRY_INTERVAL_MS = 1500L;
+
     public BasePageObject(WebDriver driver) {
         this.driver = driver;
         this.wait = new WebDriverWait(driver, Duration.ofSeconds(30));
