@@ -33,8 +33,24 @@ public class CompanyDisplayDealerPage extends BasePageObject {
 
     /** Sidebar'daki "Bayiler" butonuna tıklar ({@link CompanyDisplayFactoringsPage#navigateToFactorings} ile aynı kalıp). */
     public boolean navigateToDealers() {
+        long deadline = System.currentTimeMillis() + SIDEBAR_WAIT_SECONDS * 1000L;
+        do {
+            if (navigateToDealersOnce()) {
+                return true;
+            }
+            try {
+                Thread.sleep(MENU_RETRY_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        } while (System.currentTimeMillis() < deadline);
+        return false;
+    }
+
+    private boolean navigateToDealersOnce() {
         tryOpenNavigationDrawer();
-        waitForSidebarPopulated(8);
+        waitForSidebarPopulated(SIDEBAR_WAIT_SECONDS);
         if (clickSidebarButtonByText("bayiler")) {
             waitForVaadinNavigation();
             return true;

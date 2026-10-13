@@ -37,8 +37,24 @@ public class CompanyDisplayDealerLimitsPage extends BasePageObject {
 
     /** Sidebar'daki "Bayi Limitleri" butonuna tıklar ({@link CompanyDisplayFactoringsPage#navigateToFactorings} ile aynı kalıp). */
     public boolean navigateToDealerLimits() {
+        long deadline = System.currentTimeMillis() + SIDEBAR_WAIT_SECONDS * 1000L;
+        do {
+            if (navigateToDealerLimitsOnce()) {
+                return true;
+            }
+            try {
+                Thread.sleep(MENU_RETRY_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        } while (System.currentTimeMillis() < deadline);
+        return false;
+    }
+
+    private boolean navigateToDealerLimitsOnce() {
         tryOpenNavigationDrawer();
-        waitForSidebarPopulated(8);
+        waitForSidebarPopulated(SIDEBAR_WAIT_SECONDS);
         if (clickSidebarButtonByText("bayi limitleri")) {
             waitForVaadinNavigation();
             return true;

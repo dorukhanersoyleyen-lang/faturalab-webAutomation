@@ -36,8 +36,24 @@ public class CompanyDisplayFactoringsPage extends BasePageObject {
 
     /** Sidebar'daki "Finansal Kurumlar" butonuna tıklar (DTS listesindeki navigateToDts ile aynı kalıp). */
     public boolean navigateToFactorings() {
+        long deadline = System.currentTimeMillis() + SIDEBAR_WAIT_SECONDS * 1000L;
+        do {
+            if (navigateToFactoringsOnce()) {
+                return true;
+            }
+            try {
+                Thread.sleep(MENU_RETRY_INTERVAL_MS);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        } while (System.currentTimeMillis() < deadline);
+        return false;
+    }
+
+    private boolean navigateToFactoringsOnce() {
         tryOpenNavigationDrawer();
-        waitForSidebarPopulated(8);
+        waitForSidebarPopulated(SIDEBAR_WAIT_SECONDS);
         dumpAllSidebarButtonTexts();
         if (clickSidebarButtonByText("finansal kurumlar")) {
             waitForVaadinNavigation();
