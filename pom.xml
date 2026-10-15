@@ -163,6 +163,24 @@
       <artifactId>postgresql</artifactId>
       <version>42.7.3</version>
     </dependency>
+
+    <!-- axe-core — redesign parity erişilebilirlik katmanı (WCAG 2.2 AA, shadow DOM destekli).
+         Kendi selenium/webdrivermanager sürümlerini getirmesin diye exclude edildi. -->
+    <dependency>
+      <groupId>com.deque.html.axe-core</groupId>
+      <artifactId>selenium</artifactId>
+      <version>4.13.0</version>
+      <exclusions>
+        <exclusion>
+          <groupId>org.seleniumhq.selenium</groupId>
+          <artifactId>selenium-java</artifactId>
+        </exclusion>
+        <exclusion>
+          <groupId>io.github.bonigarcia</groupId>
+          <artifactId>webdrivermanager</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
   </dependencies>
 
   <build>
