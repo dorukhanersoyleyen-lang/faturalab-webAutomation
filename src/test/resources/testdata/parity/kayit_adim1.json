@@ -1,0 +1,138 @@
+{
+  "screen": "kayit_adim1",
+  "tasks": [
+    "#5979"
+  ],
+  "description": "Kayıt — yeni tasarımda 3 adımlı sihirbazın 1. adımı (Kullanıcı Bilgileri). Eski tek sayfalık formun kullanıcı alanları ile karşılaştırılır.",
+  "baselineSource": "https://dev.rakbank.faturalab.ae/ (eski tasarım, #5979 öncesi jar; tek sayfalık form)",
+  "capturedAt": "2026-10-15T11:24:35.527606400+03:00",
+  "baseline": {
+    "fields": [
+      {
+        "tag": "vaadin-text-field",
+        "label": "",
+        "placeholder": "Adınız ve Soyadınız",
+        "type": "text",
+        "required": true,
+        "maxlength": 100,
+        "pattern": null,
+        "invalid": false,
+        "error": "",
+        "disabled": false
+      },
+      {
+        "tag": "vaadin-text-field",
+        "label": "",
+        "placeholder": "Firmadaki Göreviniz",
+        "type": "text",
+        "required": true,
+        "maxlength": 300,
+        "pattern": null,
+        "invalid": false,
+        "error": "",
+        "disabled": false
+      },
+      {
+        "tag": "vaadin-text-field",
+        "label": "",
+        "placeholder": "E-posta Adresiniz",
+        "type": "text",
+        "required": true,
+        "maxlength": 100,
+        "pattern": null,
+        "invalid": false,
+        "error": "",
+        "disabled": false
+      },
+      {
+        "tag": "vaadin-password-field",
+        "label": "",
+        "placeholder": "Şifre",
+        "type": "password",
+        "required": true,
+        "maxlength": null,
+        "pattern": null,
+        "invalid": false,
+        "error": "",
+        "disabled": false
+      },
+      {
+        "tag": "vaadin-password-field",
+        "label": "",
+        "placeholder": "Şifre Tekrar",
+        "type": "password",
+        "required": true,
+        "maxlength": 30,
+        "pattern": null,
+        "invalid": false,
+        "error": "",
+        "disabled": false
+      },
+      {
+        "tag": "vaadin-text-field",
+        "label": "",
+        "placeholder": "Telefon Numarası",
+        "type": "text",
+        "required": false,
+        "maxlength": 30,
+        "pattern": null,
+        "invalid": false,
+        "error": "",
+        "disabled": false
+      }
+    ],
+    "buttons": [
+      "[ikon:?]",
+      "Supply Chain Finance Powered by Faturalab",
+      "Show password",
+      "KAYIT OL",
+      "EN"
+    ],
+    "links": [
+      "rakbanktest.support@faturalab.com -> mailto:rakbanktest.support@faturalab.com"
+    ],
+    "checkboxes": []
+  },
+  "rules": {
+    "fieldAliases": {},
+    "buttonAliases": {},
+    "ignoreFields": [],
+    "ignoreButtons": [
+      {
+        "name": "[ikon:?]",
+        "reason": "Tenant logosu butonu (girişe dönüş); yenide logo img — klavye erişimi K4 axe ile izlenir"
+      },
+      {
+        "name": "Supply Chain Finance Powered by Faturalab",
+        "reason": "White-label ibaresi; RakBank tenant'ına özgü (R-05 ayrıca takip ediliyor)"
+      },
+      {
+        "name": "Show password",
+        "reason": "Yenide Dasein suffix göz ikonu; erişilebilir ad K4 axe ile izlenir"
+      },
+      {
+        "name": "KAYIT OL",
+        "reason": "Eskide tek sayfanın gönder butonu; yenide sihirbazın 3. adımında (kayit_adim3 kapsamı)"
+      }
+    ],
+    "ignoreLinks": [],
+    "notes": "Şirket Bilgileri (adım 2) ve Referans/sözleşme onayları (adım 3) ayrı spec olarak eklenecek — adım geçişi test verisi doldurmayı gerektirir.",
+    "axeBaseline": [
+      {
+        "id": "aria-command-name",
+        "impact": "serious",
+        "nodes": 1
+      },
+      {
+        "id": "label",
+        "impact": "critical",
+        "nodes": 2
+      },
+      {
+        "id": "target-size",
+        "impact": "serious",
+        "nodes": 2
+      }
+    ]
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "screen": "giris",
+  "tasks": [
+    "#5980"
+  ],
+  "description": "Giriş ekranı — e-posta/şifre, Beni hatırla, Giriş/Kayıt/Şifremi Unuttum, dil seçici",
+  "baselineSource": "https://dev.rakbank.faturalab.ae/ (eski tasarım, #5979 öncesi jar)",
+  "capturedAt": "2026-10-15T11:24:20.313884500+03:00",
+  "baseline": {
+    "fields": [
+      {
+        "tag": "vaadin-text-field",
+        "label": "",
+        "placeholder": "E-posta adresi",
+        "type": "text",
+        "required": true,
+        "maxlength": 100,
+        "pattern": null,
+        "invalid": false,
+        "error": "",
+        "disabled": false
+      },
+      {
+        "tag": "vaadin-password-field",
+        "label": "",
+        "placeholder": "Şifre",
+        "type": "password",
+        "required": true,
+        "maxlength": 30,
+        "pattern": null,
+        "invalid": false,
+        "error": "",
+        "disabled": false
+      }
+    ],
+    "buttons": [
+      "[ikon:?]",
+      "Supply Chain Finance Powered by Faturalab",
+      "Show password",
+      "GİRİŞ YAP",
+      "KAYIT OL",
+      "Şifremi Unuttum",
+      "EN"
+    ],
+    "links": [
+      "rakbanktest.support@faturalab.com -> mailto:rakbanktest.support@faturalab.com"
+    ],
+    "checkboxes": [
+      {
+        "label": "Beni hatırla",
+        "checked": false,
+        "required": false
+      }
+    ]
+  },
+  "rules": {
+    "fieldAliases": {
+      "E-posta adresi": "E-mail Adresinizi Yazınız",
+      "Şifre": "Şifrenizi Giriniz"
+    },
+    "buttonAliases": {},
+    "ignoreFields": [],
+    "ignoreButtons": [
+      {
+        "name": "[ikon:?]",
+        "reason": "Tenant logosu butonu (girişe dönüş); yenide logo img — klavye erişimi K4 axe ile izlenir"
+      },
+      {
+        "name": "Supply Chain Finance Powered by Faturalab",
+        "reason": "White-label ibaresi; RakBank tenant'ına özgü (R-05 ayrıca takip ediliyor)"
+      },
+      {
+        "name": "Show password",
+        "reason": "Yenide Dasein suffix göz ikonu; erişilebilir ad K4 axe ile izlenir"
+      }
+    ],
+    "ignoreLinks": [],
+    "axeBaseline": [
+      {
+        "id": "aria-command-name",
+        "impact": "serious",
+        "nodes": 1
+      },
+      {
+        "id": "target-size",
+        "impact": "serious",
+        "nodes": 1
+      }
+    ]
+  }
+}
